@@ -9,6 +9,8 @@ Install [Videogular](http://www.videogular.com/) with Bower:
 
 `bower install videogular`
 
+In addition to `videogular.js` script file you must add to your project the folders `views` and `styles` included in this repository.
+
 ### Install plugins
 
 You can install [Videogular](http://www.videogular.com/) plugins too:
