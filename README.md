@@ -11,7 +11,7 @@ Install [Videogular](http://www.videogular.com/) with Bower:
 
 ### Install themes
 
-Unstall [Videogular](http://www.videogular.com/) themes with Bower:
+Install [Videogular](http://www.videogular.com/) themes with Bower:
 
 `bower install videogular-themes-default`
 
