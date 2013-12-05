@@ -11,13 +11,13 @@ Install [Videogular](http://www.videogular.com/) with Bower:
 
 ### Install themes
 
-You can install [Videogular](http://www.videogular.com/) themes too:
+Unstall [Videogular](http://www.videogular.com/) themes with Bower:
 
 `bower install videogular-themes-default`
 
 ### Install plugins
 
-You can install [Videogular](http://www.videogular.com/) plugins too:
+Install [Videogular](http://www.videogular.com/) plugins with Bower:
 
 `bower install videogular-controls`
 
