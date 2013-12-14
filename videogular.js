@@ -47,6 +47,23 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
 
 			return $event;
 		};
+		/**
+		 * Inspired by Paul Irish
+		 * https://gist.github.com/paulirish/211209
+		 * @returns {number}
+		 */
+		this.getZIndex = function() {
+			var zIndex = 1;
+
+			$('*')
+				.filter(function(){ return $(this).css('zIndex') !== 'auto'; })
+				.each(function(){
+					var thisZIndex = parseInt($(this).css('zIndex'));
+					if (zIndex < thisZIndex) zIndex = thisZIndex + 1;
+				});
+
+			return zIndex;
+		};
 
 		// Very simple mobile detection, not 100% reliable
 		this.isMobileDevice = function() {
@@ -129,7 +146,7 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
 	])
 	.directive(
 		"videogular",
-		["$rootScope", "$window", "VG_STATES", "VG_EVENTS", "VG_UTILS", function($rootScope, $window, VG_STATES, VG_EVENTS, VG_UTILS) {
+		["$window", "VG_STATES", "VG_EVENTS", "VG_UTILS", function($window, VG_STATES, VG_EVENTS, VG_UTILS) {
 			return {
 				restrict: "E",
 				scope: {
@@ -138,7 +155,13 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
 					theme: "=vgTheme",
 					autoPlay: "=vgAutoplay",
 					responsive: "=vgResponsive",
-					stretch: "=vgStretch"
+					stretch: "=vgStretch",
+					vgComplete: "&",
+					vgUpdateVolume: "&",
+					vgUpdateTime: "&",
+					vgUpdateSize: "&",
+					vgUpdateState: "&",
+					vgPlayerReady: "&"
 				},
 				controller: function($scope) {
 					var currentTheme = null;
@@ -149,6 +172,7 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
 					var playerWidth = 0;
 					var playerHeight = 0;
 					var isFullScreenPressed = false;
+					var isFullScreen = false;
 					var isMetaDataLoaded = false;
 					var isElementReady = false;
 					var isVideoReady = false;
@@ -156,7 +180,18 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
 					var isResponsive = false;
 					var vg = this;
 
+					var vgCompleteCallBack = $scope.vgComplete();
+					var vgUpdateVolumeCallBack = $scope.vgUpdateVolume();
+					var vgUpdateTimeCallBack = $scope.vgUpdateTime();
+					var vgUpdateSizeCallBack = $scope.vgUpdateSize();
+					var vgUpdateStateCallBack = $scope.vgUpdateState();
+					var vgPlayerReadyCallBack = $scope.vgPlayerReady();
+
 					// PUBLIC $API
+					this.$on = function() {
+						$scope.$on.apply($scope, arguments);
+					};
+
 					this.isPlayerReady = function() {
 						return isPlayerReady;
 					};
@@ -169,19 +204,21 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
 						if (this.videoElement[0].paused) {
 							this.videoElement[0].play();
 							this.setState(VG_STATES.PLAY);
-							$rootScope.$emit(VG_EVENTS.ON_PLAY);
+							$scope.$emit(VG_EVENTS.ON_PLAY);
 						}
 						else {
 							this.videoElement[0].pause();
 							this.setState(VG_STATES.PAUSE);
-							$rootScope.$emit(VG_EVENTS.ON_PAUSE);
+							$scope.$emit(VG_EVENTS.ON_PAUSE);
 						}
 					};
 
 					this.setState = function(newState) {
 						if (newState && newState != currentState) {
+							if (vgUpdateStateCallBack) vgUpdateStateCallBack(newState);
+
 							currentState = newState;
-							$rootScope.$emit(VG_EVENTS.ON_SET_STATE, [currentState]);
+							$scope.$emit(VG_EVENTS.ON_SET_STATE, [currentState]);
 						}
 
 						return currentState;
@@ -190,41 +227,59 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
 					this.play = function() {
 						this.videoElement[0].play();
 						this.setState(VG_STATES.PLAY);
-						$rootScope.$emit(VG_EVENTS.ON_PLAY);
+						$scope.$emit(VG_EVENTS.ON_PLAY);
 					};
 
 					this.pause = function() {
 						this.videoElement[0].pause();
 						this.setState(VG_STATES.PAUSE);
-						$rootScope.$emit(VG_EVENTS.ON_PAUSE);
+						$scope.$emit(VG_EVENTS.ON_PAUSE);
 					};
 
 					this.toggleFullScreen = function() {
-						if (angular.element($window)[0].fullScreenAPI.isFullScreen()) {
-							if (!VG_UTILS.isMobileDevice()) {
-								document[angular.element($window)[0].fullScreenAPI.exit]();
+						// There is no native full screen support
+						if (!angular.element($window)[0].fullScreenAPI) {
+							if (isFullScreen) {
+								this.videogularElement.removeClass("fullscreen");
+								this.videogularElement.css("z-index", 0);
 							}
+							else {
+								this.videogularElement.addClass("fullscreen");
+								this.videogularElement.css("z-index", VG_UTILS.getZIndex());
+							}
+
+							isFullScreen = !isFullScreen;
+
+							$scope.updateSize();
 						}
+						// Perform native full screen support
 						else {
-							// On mobile devices we should make fullscreen only the video object
-							if (VG_UTILS.isMobileDevice()) {
-								// On iOS we should check if user pressed before fullscreen button
-								// and also if metadata is loaded
-								if (VG_UTILS.isiOSDevice()) {
-									if (isMetaDataLoaded) {
-										this.enterElementInFullScreen(this.videoElement[0]);
-									}
-									else {
-										isFullScreenPressed = true;
-										this.play();
-									}
-								}
-								else {
-									this.enterElementInFullScreen(this.videoElement[0]);
+							if (angular.element($window)[0].fullScreenAPI.isFullScreen()) {
+								if (!VG_UTILS.isMobileDevice()) {
+									document[angular.element($window)[0].fullScreenAPI.exit]();
 								}
 							}
 							else {
-								this.enterElementInFullScreen(this.elementScope[0]);
+								// On mobile devices we should make fullscreen only the video object
+								if (VG_UTILS.isMobileDevice()) {
+									// On iOS we should check if user pressed before fullscreen button
+									// and also if metadata is loaded
+									if (VG_UTILS.isiOSDevice()) {
+										if (isMetaDataLoaded) {
+											this.enterElementInFullScreen(this.videoElement[0]);
+										}
+										else {
+											isFullScreenPressed = true;
+											this.play();
+										}
+									}
+									else {
+										this.enterElementInFullScreen(this.videoElement[0]);
+									}
+								}
+								else {
+									this.enterElementInFullScreen(this.elementScope[0]);
+								}
 							}
 						}
 					};
@@ -234,8 +289,10 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
 					};
 
 					this.setVolume = function(newVolume) {
+						if (vgUpdateVolumeCallBack) vgUpdateVolumeCallBack(newVolume);
+
 						this.videoElement[0].volume = newVolume;
-						$rootScope.$emit(VG_EVENTS.ON_SET_VOLUME, [newVolume]);
+						$scope.$emit(VG_EVENTS.ON_SET_VOLUME, [newVolume]);
 					};
 
 					this.updateTheme = function(value) {
@@ -272,6 +329,8 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
 					};
 
 					// PRIVATE FUNCTIONS
+					$scope.API = this;
+
 					$scope.init = function() {
 						vg.updateTheme($scope.theme);
 						$scope.addBindings();
@@ -378,9 +437,10 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
 
 						isPlayerReady = true;
 						$scope.updateSize();
-						$rootScope.$emit(VG_EVENTS.ON_PLAYER_READY);
+						if (vgPlayerReadyCallBack) vgPlayerReadyCallBack(vg);
+						$scope.$emit(VG_EVENTS.ON_PLAYER_READY);
 
-						if ($scope.autoPlay && !VG_UTILS.isMobileDevice()) vg.play();
+						if ($scope.autoPlay && !VG_UTILS.isMobileDevice() || currentState === VG_STATES.PLAY) vg.play();
 					};
 
 					$scope.updateSize = function() {
@@ -389,14 +449,20 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
 							var videoTop;
 							var videoLeft;
 
-							if (angular.element($window)[0].fullScreenAPI && angular.element($window)[0].fullScreenAPI.isFullScreen()) {
+							if (angular.element($window)[0].fullScreenAPI && angular.element($window)[0].fullScreenAPI.isFullScreen() || isFullScreen) {
 								vg.elementScope.css("width", parseInt(window.screen.width, 10) + "px");
 								vg.elementScope.css("height", parseInt(window.screen.height, 10) + "px");
 
 								videoSize = $scope.getVideoSize(window.screen.width, window.screen.height);
 
-								playerWidth = window.screen.width;
-								playerHeight = window.screen.height;
+								if (isFullScreen) {
+									playerWidth = $window.innerWidth;
+									playerHeight = $window.innerHeight;
+								}
+								else {
+									playerWidth = $window.screen.width;
+									playerHeight = $window.screen.height;
+								}
 							}
 							else {
 								vg.elementScope.css("width", parseInt(currentWidth, 10) + "px");
@@ -429,7 +495,9 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
 							vg.elementScope.css("width", parseInt(playerWidth, 10) + "px");
 							vg.elementScope.css("height", parseInt(playerHeight, 10) + "px");
 
-							$rootScope.$emit(VG_EVENTS.ON_UPDATE_SIZE, [playerWidth, playerHeight]);
+							if (vgUpdateSizeCallBack) vgUpdateSizeCallBack(playerWidth, playerHeight);
+
+							$scope.$emit(VG_EVENTS.ON_UPDATE_SIZE, [playerWidth, playerHeight]);
 						}
 					};
 
@@ -445,10 +513,10 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
 
 					$scope.onFullScreenChange = function(event) {
 						if (angular.element($window)[0].fullScreenAPI.isFullScreen()) {
-							$rootScope.$emit(VG_EVENTS.ON_ENTER_FULLSCREEN);
+							$scope.$emit(VG_EVENTS.ON_ENTER_FULLSCREEN);
 						}
 						else {
-							$rootScope.$emit(VG_EVENTS.ON_EXIT_FULLSCREEN);
+							$scope.$emit(VG_EVENTS.ON_EXIT_FULLSCREEN);
 						}
 
 						$scope.updateSize();
@@ -456,13 +524,15 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
 					};
 
 					$scope.onComplete = function(event) {
+						if (vgCompleteCallBack) vgCompleteCallBack();
+
 						vg.setState(VG_STATES.STOP);
-						$rootScope.$emit(VG_EVENTS.ON_COMPLETE);
+						$scope.$emit(VG_EVENTS.ON_COMPLETE);
 						$scope.$apply();
 					};
 
 					$scope.onStartBuffering = function(event) {
-						$rootScope.$emit(VG_EVENTS.ON_BUFFERING);
+						$scope.$emit(VG_EVENTS.ON_BUFFERING);
 						$scope.$apply();
 					};
 
@@ -471,12 +541,14 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
 						event.target.width++;
 						event.target.width--;
 
-						$rootScope.$emit(VG_EVENTS.ON_START_PLAYING, [event.target.duration]);
+						$scope.$emit(VG_EVENTS.ON_START_PLAYING, [event.target.duration]);
 						$scope.$apply();
 					};
 
 					$scope.onUpdateTime = function(event) {
-						$rootScope.$emit(VG_EVENTS.ON_UPDATE_TIME, [event.target.currentTime, event.target.duration]);
+						if (vgUpdateTimeCallBack) vgUpdateTimeCallBack(event.target.currentTime, event.target.duration);
+
+						$scope.$emit(VG_EVENTS.ON_UPDATE_TIME, [event.target.currentTime, event.target.duration]);
 						$scope.$apply();
 					};
 
@@ -484,24 +556,19 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
 						var percentageWidth;
 						var percentageHeight;
 						var result = {};
+						var wider = vg.videoElement[0].videoWidth / vg.videoElement[0].videoHeight > w / h;
 						result.width = w;
 						result.height = h;
 
-						switch (currentStretch) {
-							case "fit":
-								percentageWidth = w * 100 / vg.videoElement[0].videoWidth;
-								result.height = vg.videoElement[0].videoHeight * percentageWidth / 100;
-								break;
-
-							case "fill":
-								percentageHeight = h * 100 / vg.videoElement[0].videoHeight;
-								result.width = vg.videoElement[0].videoWidth * percentageHeight / 100;
-								break;
-
-							case "none":
-								result.width = vg.videoElement[0].videoWidth;
-								result.height = vg.videoElement[0].videoHeight;
-								break;
+						if (currentStretch == "fit" && wider || currentStretch == "fill" && !wider) {
+							percentageWidth = w * 100 / vg.videoElement[0].videoWidth;
+							result.height = vg.videoElement[0].videoHeight * percentageWidth / 100;
+						} else if (currentStretch == "fill" && wider || currentStretch == "fit" && !wider) {
+							percentageHeight = h * 100 / vg.videoElement[0].videoHeight;
+							result.width = vg.videoElement[0].videoWidth * percentageHeight / 100;
+						} else {
+							result.width = vg.videoElement[0].videoWidth;
+							result.height = vg.videoElement[0].videoHeight;
 						}
 
 						// Metadata has not been loaded or any problem has been happened
@@ -516,18 +583,18 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
 					$scope.init();
 				},
 				link: {
-					pre: function($scope, $elem, $attr, $controller) {
-						$controller.videogularElement = $elem;
-						$controller.elementScope = angular.element($elem);
-						$controller.videoElement = $controller.elementScope.find("video");
+					pre: function(scope, elem, attr, controller) {
+						controller.videogularElement = elem;
+						controller.elementScope = angular.element(elem);
+						controller.videoElement = controller.elementScope.find("video");
 
-						$controller.videoElement[0].addEventListener("waiting", $scope.onStartBuffering, false);
-						$controller.videoElement[0].addEventListener("ended", $scope.onComplete, false);
-						$controller.videoElement[0].addEventListener("playing", $scope.onStartPlaying, false);
-						$controller.videoElement[0].addEventListener("timeupdate", $scope.onUpdateTime, false);
+						controller.videoElement[0].addEventListener("waiting", scope.onStartBuffering, false);
+						controller.videoElement[0].addEventListener("ended", scope.onComplete, false);
+						controller.videoElement[0].addEventListener("playing", scope.onStartPlaying, false);
+						controller.videoElement[0].addEventListener("timeupdate", scope.onUpdateTime, false);
 
-						$controller.elementScope.ready($scope.onElementReady);
-						$controller.videoElement.ready($scope.onVideoReady);
+						controller.elementScope.ready(scope.onElementReady);
+						controller.videoElement.ready(scope.onVideoReady);
 					}
 				}
 			}
