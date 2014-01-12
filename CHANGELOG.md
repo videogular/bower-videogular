@@ -1,6 +1,11 @@
 CHANGELOG
 ================
 
+## v0.3.0
+* Improved fixEventOffset.
+* Now vg-theme it's not mandatory.
+
+
 ## v0.2.0
 * Support for full screen on devices without native full screen.
 * Removed `$rootScope` dependencies.
