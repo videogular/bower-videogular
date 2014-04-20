@@ -1,6 +1,11 @@
 CHANGELOG
 ================
 
+## v0.3.2
+* Removed jQuery dependency.
+* Added new vgSrc directivo to set by binding a video source.
+* Added a new event ON_ERROR.
+
 ## v0.3.1
 * Added support for minification.
 * Added minified version.
@@ -8,11 +13,9 @@ CHANGELOG
 * Now all plugin HTML templates are embedded in JS files (easier to deploy with bower).
 * Improved fixEventOffset.
 
-
 ## v0.3.0
 * Improved fixEventOffset.
 * Now vg-theme it's not mandatory.
-
 
 ## v0.2.0
 * Support for full screen on devices without native full screen.
