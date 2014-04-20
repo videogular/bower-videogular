@@ -5,6 +5,7 @@ CHANGELOG
 * Removed jQuery dependency.
 * Added new vgSrc directivo to set by binding a video source.
 * Added a new event ON_ERROR.
+* Added gitignore, package.json and Gruntfile.
 
 ## v0.3.1
 * Added support for minification.
