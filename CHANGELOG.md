@@ -1,5 +1,17 @@
 CHANGELOG
 ================
+## v0.4.1
+* Fixed bug at vg-src in Safari for Windows 8.
+* Fixed bug with iOS screen size.
+* Fixed bug in vgScrubbarcurrenttime, it wasn't updating the current time.
+
+## v0.4.0
+* Added support for IE11 fullscreen API.
+* Added new callback vgChangeSource to change video source or quality.
+* Added new stop method.
+* Added licenses in all files.
+* Fixed some issues related to $apply in progress error.
+* Fixed to show icon correctly in overlay-play when a complete event is fired.
 
 ## v0.3.2
 * Removed jQuery dependency.
