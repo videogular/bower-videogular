@@ -261,8 +261,18 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
 						return isPlayerReady;
 					};
 
-					this.seekTime = function(time) {
-						this.videoElement[0].currentTime = time;
+					this.seekTime = function(value, byPercent) {
+                        var second;
+                        if (byPercent) {
+                            second = value * this.videoElement[0].duration / 100;
+                            this.videoElement[0].currentTime = second;
+                        }
+                        else {
+                            second = value;
+                            this.videoElement[0].currentTime = second;
+                        }
+
+                        $scope.$emit(VG_EVENTS.ON_SEEK_TIME, [second]);
 					};
 
 					this.playPause = function() {
@@ -276,7 +286,10 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
 
 					this.setState = function(newState) {
 						if (newState && newState != $scope.currentState) {
-							if (vgUpdateStateCallBack) vgUpdateStateCallBack(newState);
+							if ($scope.vgUpdateState()) {
+								vgUpdateStateCallBack = $scope.vgUpdateState();
+								vgUpdateStateCallBack(newState);
+							}
 
 							$scope.currentState = newState;
 							$scope.$emit(VG_EVENTS.ON_SET_STATE, [$scope.currentState]);
@@ -357,11 +370,17 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
 					};
 
 					this.changeSource = function(newValue) {
-						if (vgChangeSourceCallBack) vgChangeSourceCallBack(newValue);
+						if ($scope.vgChangeSource()) {
+							vgChangeSourceCallBack = $scope.vgChangeSource();
+							vgChangeSourceCallBack(newValue);
+						}
 					};
 
 					this.setVolume = function(newVolume) {
-						if (vgUpdateVolumeCallBack) vgUpdateVolumeCallBack(newVolume);
+						if ($scope.vgUpdateVolume()) {
+							vgUpdateVolumeCallBack = $scope.vgUpdateVolume();
+							vgUpdateVolumeCallBack(newVolume);
+						}
 
 						this.videoElement[0].volume = newVolume;
 						$scope.$emit(VG_EVENTS.ON_SET_VOLUME, [newVolume]);
@@ -511,7 +530,10 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
 
 						isPlayerReady = true;
 						$scope.updateSize();
-						if (vgPlayerReadyCallBack) vgPlayerReadyCallBack(vg);
+						if ($scope.vgPlayerReady()) {
+							vgPlayerReadyCallBack = $scope.vgPlayerReady();
+							vgPlayerReadyCallBack(vg);
+						}
 						$scope.$emit(VG_EVENTS.ON_PLAYER_READY);
 
 						if ($scope.autoPlay && !VG_UTILS.isMobileDevice() || $scope.currentState === VG_STATES.PLAY) vg.play();
@@ -569,7 +591,10 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
 							vg.elementScope.css("width", parseInt(playerWidth, 10) + "px");
 							vg.elementScope.css("height", parseInt(playerHeight, 10) + "px");
 
-							if (vgUpdateSizeCallBack) vgUpdateSizeCallBack(playerWidth, playerHeight);
+							if ($scope.vgUpdateSize()) {
+								vgUpdateSizeCallBack = $scope.vgUpdateSize();
+								vgUpdateSizeCallBack(playerWidth, playerHeight);
+							}
 
 							$scope.$emit(VG_EVENTS.ON_UPDATE_SIZE, [playerWidth, playerHeight]);
 						}
@@ -597,7 +622,10 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
 					};
 
 					$scope.onComplete = function(event) {
-						if (vgCompleteCallBack) vgCompleteCallBack();
+						if ($scope.vgComplete()) {
+							vgCompleteCallBack = $scope.vgComplete();
+							vgCompleteCallBack();
+						}
 
 						vg.setState(VG_STATES.STOP);
 						$scope.$emit(VG_EVENTS.ON_COMPLETE);
@@ -616,7 +644,10 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
 					};
 
 					$scope.onUpdateTime = function(event) {
-						if (vgUpdateTimeCallBack) vgUpdateTimeCallBack(event.target.currentTime, event.target.duration);
+						if ($scope.vgUpdateTime()) {
+							vgUpdateTimeCallBack = $scope.vgUpdateTime();
+							vgUpdateTimeCallBack(event.target.currentTime, event.target.duration);
+						}
 
 						$scope.$emit(VG_EVENTS.ON_UPDATE_TIME, [event.target.currentTime, event.target.duration]);
 					};
@@ -702,7 +733,7 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
 							}
 
 							if (canPlay == "") {
-								scope.$emit(VG_EVENTS.ON_ERROR, {type: "Can't play file"})
+								scope.$broadcast(VG_EVENTS.ON_ERROR, {type: "Can't play file"})
 							}
 						}
 

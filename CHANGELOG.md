@@ -1,5 +1,9 @@
 CHANGELOG
 ================
+## v0.4.2
+* Added seek by seconds or percentage passing a parameter.
+* Added new "timeLeft" property.
+
 ## v0.4.1
 * Fixed bug at vg-src in Safari for Windows 8.
 * Fixed bug with iOS screen size.
