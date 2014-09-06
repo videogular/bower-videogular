@@ -1,5 +1,5 @@
 /**
- * @license Videogular v0.4.0 http://videogular.com
+ * @license Videogular v0.5.1 http://videogular.com
  * Two Fucking Developers http://twofuckingdevelopers.com
  * License: MIT
  */
@@ -53,7 +53,7 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
 			return zIndex;
 		};
 
-		this.secondsToDate = function(seconds) {
+		this.secondsToDate = function (seconds) {
 			var result = new Date();
 			result.setTime(seconds * 1000);
 			return result;
@@ -109,8 +109,7 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
 					enabled: "webkitFullscreenEnabled",
 					element: "webkitFullscreenElement",
 					request: "webkitEnterFullscreen",
-					exit: undefined,
-					onexit: "webkitendfullscreen",
+					exit: "webkitExitFullscreen",
 					onchange: "webkitfullscreenchange",
 					onerror: "webkitfullscreenerror"
 				},
@@ -146,34 +145,34 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
 			angular.element($window)[0].fullScreenAPI = fullScreenAPI;
 		}
 	])
-	/**
-	 * @ngdoc directive
-	 * @name com.2fdevs.videogular.videogular:videogular
-	 * @restrict E
-	 * @description
-	 * Main directive that must wrap a &lt;video&gt; tag and all plugins.
-	 *
-	 * &lt;video&gt; tag usually will be above plugin tags, that's because plugins should be in a layer over the &lt;video&gt;.
-	 *
-	 * You can customize `videogular` with these attributes:
-	 *
-	 * @param {string} vgTheme String with a scope name variable. This directive will inject a CSS link in the header of your page.
-	 * **This parameter is required.**
-	 *
-	 * @param {boolean or string} [autoPlay=false] vgAutoplay Boolean value or a String with a scope name variable to auto start playing video when it is initialized.
-	 *
-	 * **This parameter is disabled in mobile devices** because user must click on content to prevent consuming mobile data plans.
-	 *
-	 * @param {function} vgComplete Function name in controller's scope to call when video have been completed.
-	 * @param {function} vgUpdateVolume Function name in controller's scope to call when volume changes. Receives a param with the new volume.
-	 * @param {function} vgUpdateTime Function name in controller's scope to call when video playback time is updated. Receives two params with current time and duration in milliseconds.
-	 * @param {function} vgUpdateState Function name in controller's scope to call when video state changes. Receives a param with the new state. Possible values are "play", "stop" or "pause".
-	 * @param {function} vgPlayerReady Function name in controller's scope to call when video have been initialized. Receives a param with the videogular API.
-	 * @param {function} vgChangeSource Function name in controller's scope to change current video source. Receives a param with the new video.
-	 * This is a free parameter and it could be values like "new.mp4", "320" or "sd". This will allow you to use this to change a video or video quality.
-	 * This callback will not change the video, you should do that by updating your sources scope variable.
-	 *
-	 */
+/**
+ * @ngdoc directive
+ * @name com.2fdevs.videogular.videogular:videogular
+ * @restrict E
+ * @description
+ * Main directive that must wrap a &lt;video&gt; tag and all plugins.
+ *
+ * &lt;video&gt; tag usually will be above plugin tags, that's because plugins should be in a layer over the &lt;video&gt;.
+ *
+ * You can customize `videogular` with these attributes:
+ *
+ * @param {string} vgTheme String with a scope name variable. This directive will inject a CSS link in the header of your page.
+ * **This parameter is required.**
+ *
+ * @param {boolean or string} [autoPlay=false] vgAutoplay Boolean value or a String with a scope name variable to auto start playing video when it is initialized.
+ *
+ * **This parameter is disabled in mobile devices** because user must click on content to prevent consuming mobile data plans.
+ *
+ * @param {function} vgComplete Function name in controller's scope to call when video have been completed.
+ * @param {function} vgUpdateVolume Function name in controller's scope to call when volume changes. Receives a param with the new volume.
+ * @param {function} vgUpdateTime Function name in controller's scope to call when video playback time is updated. Receives two params with current time and duration in milliseconds.
+ * @param {function} vgUpdateState Function name in controller's scope to call when video state changes. Receives a param with the new state. Possible values are "play", "stop" or "pause".
+ * @param {function} vgPlayerReady Function name in controller's scope to call when video have been initialized. Receives a param with the videogular API.
+ * @param {function} vgChangeSource Function name in controller's scope to change current video source. Receives a param with the new video.
+ * This is a free parameter and it could be values like "new.mp4", "320" or "sd". This will allow you to use this to change a video or video quality.
+ * This callback will not change the video, you should do that by updating your sources scope variable.
+ *
+ */
 	.directive(
 	"videogular",
 	["$window", "VG_STATES", "VG_UTILS", function ($window, VG_STATES, VG_UTILS) {
@@ -192,9 +191,7 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
 			controller: ['$scope', '$timeout', function ($scope, $timeout) {
 				var currentTheme = null;
 				var isFullScreenPressed = false;
-				var isFullScreen = false;
 				var isMetaDataLoaded = false;
-				var vg = this;
 
 				var vgCompleteCallBack = $scope.vgComplete();
 				var vgUpdateVolumeCallBack = $scope.vgUpdateVolume();
@@ -204,22 +201,26 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
 				var vgChangeSourceCallBack = $scope.vgChangeSource();
 
 				// PUBLIC $API
-				this.onVideoReady = function (evt) {
+				this.onMobileVideoReady = function (evt, target) {
+					this.onVideoReady();
+				};
+
+				this.onVideoReady = function (evt, target) {
 					// Here we're in the video scope, we can't use 'this.'
 					$scope.API.isReady = true;
 					$scope.API.currentState = VG_STATES.STOP;
-					$scope.API.videoElement = angular.element(evt.target);
+					$scope.$apply();
 
 					isMetaDataLoaded = true;
 
 					if ($scope.vgPlayerReady()) {
 						vgPlayerReadyCallBack = $scope.vgPlayerReady();
-						vgPlayerReadyCallBack(vg);
+						vgPlayerReadyCallBack($scope.API);
 					}
 
 					if ($scope.autoPlay && !VG_UTILS.isMobileDevice() || $scope.API.currentState === VG_STATES.PLAY) {
 						$timeout(function () {
-							vg.play();
+							$scope.API.play();
 						})
 					}
 				};
@@ -248,19 +249,19 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
 				this.seekTime = function (value, byPercent) {
 					var second;
 					if (byPercent) {
-						second = value * this.videoElement[0].duration / 100;
-						this.videoElement[0].currentTime = second;
+						second = value * $scope.API.videoElement[0].duration / 100;
+						$scope.API.videoElement[0].currentTime = second;
 					}
 					else {
 						second = value;
-						this.videoElement[0].currentTime = second;
+						$scope.API.videoElement[0].currentTime = second;
 					}
 
 					$scope.API.currentTime = VG_UTILS.secondsToDate(second);
 				};
 
 				this.playPause = function () {
-					if (this.videoElement[0].paused) {
+					if ($scope.API.videoElement[0].paused) {
 						this.play();
 					}
 					else {
@@ -282,18 +283,18 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
 				};
 
 				this.play = function () {
-					this.videoElement[0].play();
+					$scope.API.videoElement[0].play();
 					this.setState(VG_STATES.PLAY);
 				};
 
 				this.pause = function () {
-					this.videoElement[0].pause();
+					$scope.API.videoElement[0].pause();
 					this.setState(VG_STATES.PAUSE);
 				};
 
 				this.stop = function () {
-					this.videoElement[0].pause();
-					this.videoElement[0].currentTime = 0;
+					$scope.API.videoElement[0].pause();
+					$scope.API.videoElement[0].currentTime = 0;
 					this.setState(VG_STATES.STOP);
 				};
 
@@ -360,7 +361,7 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
 						vgUpdateVolumeCallBack(newVolume);
 					}
 
-					this.videoElement[0].volume = newVolume;
+					$scope.API.videoElement[0].volume = newVolume;
 					$scope.API.volume = newVolume;
 				};
 
@@ -401,7 +402,7 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
 						vgCompleteCallBack();
 					}
 
-					vg.setState(VG_STATES.STOP);
+					$scope.API.setState(VG_STATES.STOP);
 					$scope.API.isCompleted = true;
 					$scope.$apply();
 				};
@@ -416,7 +417,7 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
 					$scope.API.totalTime = 0;
 					$scope.API.timeLeft = 0;
 
-					vg.updateTheme($scope.theme);
+					$scope.API.updateTheme($scope.theme);
 					$scope.addBindings();
 
 					if (angular.element($window)[0].fullScreenAPI) {
@@ -427,13 +428,13 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
 				$scope.addBindings = function () {
 					$scope.$watch("theme", function (newValue, oldValue) {
 						if (newValue != oldValue) {
-							vg.updateTheme(newValue);
+							$scope.API.updateTheme(newValue);
 						}
 					});
 
 					$scope.$watch("autoPlay", function (newValue, oldValue) {
 						if (newValue != oldValue) {
-							if (newValue) vg.play();
+							if (newValue) $scope.API.play();
 						}
 					});
 				};
@@ -455,24 +456,37 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
 	}
 	])
 	.directive("vgVideo",
-	["$compile", function ($compile) {
+	["$compile", "VG_UTILS", function ($compile, VG_UTILS) {
 		return {
 			restrict: "E",
 			require: "^videogular",
 			scope: {
-				vgSrc: "="
+				vgSrc: "=",
+				vgLoop: "=",
+				vgPreload: "=",
+				vgNativeControls: "=",
+				vgTracks: "="
 			},
 			link: function (scope, elem, attr, API) {
-				var videoTag = angular.element('<video vg-source="vgSrc"></video>');
-				var compiled = $compile(videoTag)(scope);
+				var videoTagText = '<video vg-source="vgSrc" ';
 
-				videoTag[0].addEventListener("loadedmetadata", API.onVideoReady, false);
-				videoTag[0].addEventListener("waiting", API.onStartBuffering, false);
-				videoTag[0].addEventListener("ended", API.onComplete, false);
-				videoTag[0].addEventListener("playing", API.onStartPlaying, false);
-				videoTag[0].addEventListener("timeupdate", API.onUpdateTime, false);
+				videoTagText += '></video>';
+
+				API.videoElement = angular.element(videoTagText);
+				var compiled = $compile(API.videoElement)(scope);
+
+				API.videoElement[0].addEventListener("loadedmetadata", API.onVideoReady, false);
+				API.videoElement[0].addEventListener("waiting", API.onStartBuffering, false);
+				API.videoElement[0].addEventListener("ended", API.onComplete, false);
+				API.videoElement[0].addEventListener("playing", API.onStartPlaying, false);
+				API.videoElement[0].addEventListener("timeupdate", API.onUpdateTime, false);
 
 				elem.append(compiled);
+
+				if (VG_UTILS.isMobileDevice()) {
+					API.videoElement[0].removeEventListener("loadedmetadata", API.onVideoReady, false);
+					API.onMobileVideoReady();
+				}
 			}
 		}
 	}
@@ -483,7 +497,6 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
 			restrict: "A",
 			link: {
 				pre: function (scope, elem, attr) {
-					var element = elem;
 					var sources;
 					var canPlay;
 
@@ -491,13 +504,13 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
 						canPlay = "";
 
 						// It's a cool browser
-						if (element[0].canPlayType) {
+						if (elem[0].canPlayType) {
 							for (var i = 0, l = sources.length; i < l; i++) {
-								canPlay = element[0].canPlayType(sources[i].type);
+								canPlay = elem[0].canPlayType(sources[i].type);
 
 								if (canPlay == "maybe" || canPlay == "probably") {
-									element.attr("src", sources[i].src);
-									element.attr("type", sources[i].type);
+									elem.attr("src", sources[i].src);
+									elem.attr("type", sources[i].type);
 									break;
 								}
 							}
@@ -505,8 +518,8 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
 						// It's a crappy browser and it doesn't deserve any respect
 						else {
 							// Get H264 or the first one
-							element.attr("src", sources[0].src);
-							element.attr("type", sources[0].type);
+							elem.attr("src", sources[0].src);
+							elem.attr("type", sources[0].type);
 						}
 
 						if (canPlay == "") {
@@ -518,6 +531,125 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
 						if ((!sources || newValue != oldValue) && newValue) {
 							sources = newValue;
 							changeSource();
+						}
+					});
+				}
+			}
+		}
+	}
+	])
+	.directive("vgTracks",
+	[function () {
+		return {
+			restrict: "A",
+			require: "^videogular",
+			link: {
+				pre: function (scope, elem, attr, API) {
+					var tracks;
+					var trackText;
+					var i;
+					var l;
+
+					function changeSource() {
+						// Remove previous tracks
+						var oldTracks = API.videoElement.children();
+
+						for (i = 0, l = oldTracks.length; i < l; i++) {
+							oldTracks[i].remove();
+						}
+
+						// Add new tracks
+						for (i = 0, l = tracks.length; i < l; i++) {
+							trackText = "";
+							trackText += '<track ';
+
+							// Add track properties
+							for (var prop in tracks[i]) {
+								trackText += prop + '="' + tracks[i][prop] + '" ';
+							}
+
+							trackText += '></track>';
+
+							API.videoElement.append(trackText, tracks[i].src);
+						}
+					}
+
+					scope.$watch(attr.vgTracks, function (newValue, oldValue) {
+						if ((!tracks || newValue != oldValue)) {
+							tracks = newValue;
+
+							// Add tracks to the API to have it available for other plugins (like controls)
+							API.tracks = tracks;
+							changeSource();
+						}
+					});
+				}
+			}
+		}
+	}
+	])
+	.directive("vgLoop",
+	[function () {
+		return {
+			restrict: "A",
+			require: "^videogular",
+			link: {
+				pre: function (scope, elem, attr, API) {
+					var loop;
+
+					scope.$watch(attr.vgLoop, function (newValue, oldValue) {
+						if ((!loop || newValue != oldValue) && newValue) {
+							loop = newValue;
+							API.videoElement.attr("loop", loop);
+						}
+						else {
+							API.videoElement.removeAttr("loop");
+						}
+					});
+				}
+			}
+		}
+	}
+	])
+	.directive("vgPreload",
+	[function () {
+		return {
+			restrict: "A",
+			require: "^videogular",
+			link: {
+				pre: function (scope, elem, attr, API) {
+					var preload;
+
+					scope.$watch(attr.vgPreload, function (newValue, oldValue) {
+						if ((!preload || newValue != oldValue) && newValue) {
+							preload = newValue;
+							API.videoElement.attr("preload", preload);
+						}
+						else {
+							API.videoElement.removeAttr("preload");
+						}
+					});
+				}
+			}
+		}
+	}
+	])
+	.directive("vgNativeControls",
+	[function () {
+		return {
+			restrict: "A",
+			require: "^videogular",
+			link: {
+				pre: function (scope, elem, attr, API) {
+					var controls;
+
+					scope.$watch(attr.vgNativeControls, function (newValue, oldValue) {
+						if ((!controls || newValue != oldValue) && newValue) {
+							controls = newValue;
+							API.videoElement.attr("controls", "");
+						}
+						else {
+							API.videoElement.removeAttr("controls");
 						}
 					});
 				}
