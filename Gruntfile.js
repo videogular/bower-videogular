@@ -4,7 +4,7 @@ module.exports = function(grunt) {
 		release: {
 			options: {
 				//bump: false, //default: true
-				//file: 'component.json', //default: package.json
+				//file: 'bower.json', //default: package.json
 				//add: false, //default: true
 				//commit: false, //default: true
 				//tag: false, //default: true
@@ -14,17 +14,17 @@ module.exports = function(grunt) {
 				//folder: 'folder/to/publish/to/npm', //default project root
 				//commitMessage: 'check out my release <%= version %>', //default: 'release <%= version %>'
 				//tagMessage: 'tagging version <%= version %>', //default: 'Version <%= version %>',
+				//tagName: 'v<%= version %>', //default: '<%= version %>'
 
 				file: 'bower.json', //default: package.json
-				npm: false, //default: true
-				tagName: 'v<%= version %>', //default: '<%= version %>'
-				github: {
-					repo: '2fdevs/bower-videogular', //put your user/repo here
-					usernameVar: 'GITHUB_USERNAME', //ENVIRONMENT VARIABLE that contains Github username
-					passwordVar: 'GITHUB_PASSWORD' //ENVIRONMENT VARIABLE that contains Github password
-				}
+				add: false, //default: true
+				commit: false, //default: true
+				tag: false, //default: true
+				push: false, //default: true
+				pushTags: false, //default: true
+				npm: false
 			}
-		},
+		}
 	});
 
 	grunt.loadNpmTasks('grunt-release');

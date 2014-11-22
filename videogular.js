@@ -1,5 +1,5 @@
 /**
- * @license Videogular v0.7.0 http://videogular.com
+ * @license Videogular v0.7.1 http://videogular.com
  * Two Fucking Developers http://twofuckingdevelopers.com
  * License: MIT
  */
@@ -175,6 +175,7 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
  * @param {function} vgUpdateState Function name in controller's scope to call when video state changes. Receives a param with the new state. Possible values are "play", "stop" or "pause".
  * @param {function} vgPlayerReady Function name in controller's scope to call when video have been initialized. Receives a param with the videogular API.
  * @param {function} vgChangeSource Function name in controller's scope to change current video source. Receives a param with the new video.
+ * @param {function} vgError Function name in controller's scope to receive an error from video object. Receives a param with the error event.
  * This is a free parameter and it could be values like "new.mp4", "320" or "sd". This will allow you to use this to change a video or video quality.
  * This callback will not change the video, you should do that by updating your sources scope variable.
  *
@@ -192,7 +193,8 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
         vgUpdateTime: "&",
         vgUpdateState: "&",
         vgPlayerReady: "&",
-        vgChangeSource: "&"
+        vgChangeSource: "&",
+        vgError: "&"
       },
       controller: ['$scope', '$timeout', function ($scope, $timeout) {
         var currentTheme = null;
@@ -205,6 +207,7 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
         var vgUpdateStateCallBack = $scope.vgUpdateState();
         var vgPlayerReadyCallBack = $scope.vgPlayerReady();
         var vgChangeSourceCallBack = $scope.vgChangeSource();
+        var vgError = $scope.vgError();
 
         // PUBLIC $API
         this.videogularElement = null;
@@ -213,17 +216,16 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
           $scope.API.mediaElement[0].src = '';
         };
 
-        this.onMobileVideoReady = function (evt, target) {
-          this.onVideoReady(evt, target, true);
+        this.onCanPlay = function(evt) {
+          $scope.API.isBuffering = false;
+          $scope.$apply();
         };
 
-        this.onVideoReady = function (evt, target, avoidDigest) {
+        this.onVideoReady = function () {
           // Here we're in the video scope, we can't use 'this.'
           $scope.API.isReady = true;
           $scope.API.autoPlay = $scope.autoPlay;
           $scope.API.currentState = VG_STATES.STOP;
-          $scope.API.onUpdateTime(evt);
-          if (!avoidDigest) $scope.$apply();
 
           isMetaDataLoaded = true;
 
@@ -237,6 +239,11 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
               $scope.API.play();
             });
           }
+        };
+
+        this.onLoadMetaData = function(evt) {
+          $scope.API.isBuffering = false;
+          $scope.API.onUpdateTime(evt);
         };
 
         this.onUpdateTime = function (event) {
@@ -415,10 +422,12 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
 
         this.onStartBuffering = function (event) {
           $scope.API.isBuffering = true;
+          $scope.$apply();
         };
 
         this.onStartPlaying = function (event) {
           $scope.API.isBuffering = false;
+          $scope.$apply();
         };
 
         this.onComplete = function (event) {
@@ -430,6 +439,26 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
           $scope.API.setState(VG_STATES.STOP);
           $scope.API.isCompleted = true;
           $scope.$apply();
+        };
+
+        this.onVideoError = function (event) {
+          if ($scope.vgError()) {
+            vgError = $scope.vgError();
+            vgError(event);
+          }
+        };
+
+        this.addListeners = function() {
+          $scope.API.mediaElement[0].addEventListener("canplay", $scope.API.onCanPlay, false);
+          $scope.API.mediaElement[0].addEventListener("loadedmetadata", $scope.API.onLoadMetaData, false);
+          $scope.API.mediaElement[0].addEventListener("waiting", $scope.API.onStartBuffering, false);
+          $scope.API.mediaElement[0].addEventListener("ended", $scope.API.onComplete, false);
+          $scope.API.mediaElement[0].addEventListener("playing", $scope.API.onStartPlaying, false);
+          $scope.API.mediaElement[0].addEventListener("play", $scope.API.onPlay, false);
+          $scope.API.mediaElement[0].addEventListener("pause", $scope.API.onPause, false);
+          $scope.API.mediaElement[0].addEventListener("volumechange", $scope.API.onVolumeChange, false);
+          $scope.API.mediaElement[0].addEventListener("timeupdate", $scope.API.onUpdateTime, false);
+          $scope.API.mediaElement[0].addEventListener("error", $scope.API.onVideoError, false);
         };
 
         // FUNCTIONS NOT AVAILABLE THROUGH API
@@ -525,21 +554,11 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
         API.mediaElement = angular.element(videoTagText);
         var compiled = $compile(API.mediaElement)(scope);
 
-        API.mediaElement[0].addEventListener("loadedmetadata", API.onVideoReady, false);
-        API.mediaElement[0].addEventListener("waiting", API.onStartBuffering, false);
-        API.mediaElement[0].addEventListener("ended", API.onComplete, false);
-        API.mediaElement[0].addEventListener("playing", API.onStartPlaying, false);
-        API.mediaElement[0].addEventListener("play", API.onPlay, false);
-        API.mediaElement[0].addEventListener("pause", API.onPause, false);
-        API.mediaElement[0].addEventListener("volumechange", API.onVolumeChange, false);
-        API.mediaElement[0].addEventListener("timeupdate", API.onUpdateTime, false);
+        API.addListeners();
 
         elem.append(compiled);
 
-        if (VG_UTILS.isMobileDevice()) {
-          API.mediaElement[0].removeEventListener("loadedmetadata", API.onVideoReady, false);
-          API.onMobileVideoReady();
-        }
+        API.onVideoReady();
       }
     }
   }
@@ -583,21 +602,11 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
         API.mediaElement = angular.element(audioTagText);
         var compiled = $compile(API.mediaElement)(scope);
 
-        API.mediaElement[0].addEventListener("loadedmetadata", API.onVideoReady, false);
-        API.mediaElement[0].addEventListener("waiting", API.onStartBuffering, false);
-        API.mediaElement[0].addEventListener("ended", API.onComplete, false);
-        API.mediaElement[0].addEventListener("playing", API.onStartPlaying, false);
-        API.mediaElement[0].addEventListener("play", API.onPlay, false);
-        API.mediaElement[0].addEventListener("pause", API.onPause, false);
-        API.mediaElement[0].addEventListener("volumechange", API.onVolumeChange, false);
-        API.mediaElement[0].addEventListener("timeupdate", API.onUpdateTime, false);
+        API.addListeners();
 
         elem.append(compiled);
 
-        if (VG_UTILS.isMobileDevice()) {
-          API.mediaElement[0].removeEventListener("loadedmetadata", API.onVideoReady, false);
-          API.onMobileVideoReady();
-        }
+        API.onVideoReady();
       }
     }
   }
@@ -739,11 +748,6 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
             if ((!preload || newValue != oldValue) && newValue) {
               preload = newValue;
               API.mediaElement.attr("preload", preload);
-
-              if (preload == "none") {
-                API.mediaElement[0].removeEventListener("loadedmetadata", API.onVideoReady, false);
-                API.onMobileVideoReady();
-              }
             }
             else {
               API.mediaElement.removeAttr("preload");
