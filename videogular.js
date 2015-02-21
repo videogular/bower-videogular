@@ -1,5 +1,5 @@
 /**
- * @license Videogular v1.0.0 http://videogular.com
+ * @license Videogular v1.0.1 http://videogular.com
  * Two Fucking Developers http://twofuckingdevelopers.com
  * License: MIT
  */
@@ -7,7 +7,8 @@
 angular.module("com.2fdevs.videogular", ["ngSanitize"])
   .run(
     ["$templateCache", function($templateCache) {
-      $templateCache.put("vg-templates/vg-media", "<video></video>");
+      $templateCache.put("vg-templates/vg-media-video", "<video></video>");
+      $templateCache.put("vg-templates/vg-media-audio", "<audio></audio>");
     }]
   );
 
@@ -365,6 +366,10 @@ angular.module("com.2fdevs.videogular")
           if (newValue) $scope.API.play();
         }
       });
+
+      $scope.$watch("vgPlaysInline", function (newValue, oldValue) {
+        $scope.API.playsInline = $scope.vgPlaysInline;
+      });
     };
 
     $scope.onFullScreenChange = function (event) {
@@ -447,6 +452,7 @@ angular.module("com.2fdevs.videogular")
  * Directive to add a source of videos or audios. This directive will create a &lt;video&gt; tag and usually will be above plugin tags.
  *
  * @param {array} vgSrc Bindable array with a list of media sources. A media source is an object with two properties `src` and `type`. The `src` property must contains a trusful url resource.
+ * @param {string} vgType String with "video" or "audio" values to set a <video> or <audio> tag inside <vg-media>.
  * ```js
  * {
  *    src: $sce.trustAsResourceUrl("path/to/video/videogular.mp4"),
@@ -463,13 +469,23 @@ angular.module("com.2fdevs.videogular")
       restrict: "E",
       require: "^videogular",
       templateUrl: function(elem, attrs) {
-        return attrs.vgTemplate || 'vg-templates/vg-media';
+        var vgType = attrs.vgType || "video";
+        return attrs.vgTemplate || "vg-templates/vg-media-" + vgType;
       },
       scope: {
-        vgSrc: "=?"
+        vgSrc: "=?",
+        vgType: "=?"
       },
-      link: function (scope, elem, attr, API) {
+      link: function (scope, elem, attrs, API) {
         var sources;
+
+        // what type of media do we want? defaults to 'video'
+        if (!attrs.vgType || attrs.vgType === "video") {
+          attrs.vgType = "video";
+        }
+        else {
+          attrs.vgType = "audio";
+        }
 
         // FUNCTIONS
         scope.onChangeSource = function onChangeSource(newValue, oldValue) {
@@ -512,7 +528,7 @@ angular.module("com.2fdevs.videogular")
         };
 
         // INIT
-        API.mediaElement = elem.find("video");
+        API.mediaElement = elem.find(attrs.vgType);
         API.sources = scope.vgSrc;
 
         API.addListeners();
@@ -753,7 +769,7 @@ angular.module("com.2fdevs.videogular")
  * @param {string} vgTheme String with a scope name variable. This directive will inject a CSS link in the header of your page.
  * **This parameter is required.**
  *
- * @param {boolean} [vgAutoplay=false] vgAutoplay Boolean value or a String with a scope name variable to auto start playing video when it is initialized.
+ * @param {boolean} [vgAutoPlay=false] vgAutoPlay Boolean value or a String with a scope name variable to auto start playing video when it is initialized.
  *
  * **This parameter is disabled in mobile devices** because user must click on content to prevent consuming mobile data plans.
  *
