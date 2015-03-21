@@ -1,5 +1,5 @@
 /**
- * @license videogular v1.1.0 http://videogular.com
+ * @license videogular v1.1.1 http://videogular.com
  * Two Fucking Developers http://twofuckingdevelopers.com
  * License: MIT
  */
@@ -9,6 +9,32 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
     ["$templateCache", function($templateCache) {
       $templateCache.put("vg-templates/vg-media-video", "<video></video>");
       $templateCache.put("vg-templates/vg-media-audio", "<audio></audio>");
+
+      // Support for browsers that doesn't have .bind()
+      if (!Function.prototype.bind) {
+        Function.prototype.bind = function(oThis) {
+          if (typeof this !== 'function') {
+            // closest thing possible to the ECMAScript 5
+            // internal IsCallable function
+            throw new TypeError('Function.prototype.bind - what is trying to be bound is not callable');
+          }
+
+          var aArgs   = Array.prototype.slice.call(arguments, 1),
+            fToBind = this,
+            fNOP    = function() {},
+            fBound  = function() {
+              return fToBind.apply(this instanceof fNOP
+                  ? this
+                  : oThis,
+                aArgs.concat(Array.prototype.slice.call(arguments)));
+            };
+
+          fNOP.prototype = this.prototype;
+          fBound.prototype = new fNOP();
+
+          return fBound;
+        };
+      }
     }]
   );
 
@@ -408,8 +434,12 @@ angular.module("com.2fdevs.videogular")
       this.totalTime = 0;
       this.timeLeft = 0;
       this.isLive = false;
-      this.isFullScreen = vgFullscreen.isFullScreen();
+      this.isFullScreen = false;
       this.isConfig = ($scope.vgConfig != undefined);
+
+      if (vgFullscreen.isAvailable) {
+        this.isFullScreen = vgFullscreen.isFullScreen();
+      }
 
       this.updateTheme($scope.vgTheme);
       this.addBindings();
@@ -587,6 +617,9 @@ angular.module("com.2fdevs.videogular")
             API.mediaElement.attr("src", sources[0].src);
             API.mediaElement.attr("type", sources[0].type);
           }
+
+          // Android 2.3 support: https://github.com/2fdevs/videogular/issues/187
+          API.mediaElement[0].load();
 
           $timeout(function() {
             if (API.autoPlay && !VG_UTILS.isMobileDevice() || API.currentState === VG_STATES.PLAY) API.play();
@@ -774,7 +807,9 @@ angular.module("com.2fdevs.videogular")
             var oldTracks = API.mediaElement.children();
 
             for (i = 0, l = oldTracks.length; i < l; i++) {
-              oldTracks[i].remove();
+              if (oldTracks[i].remove) {
+                oldTracks[i].remove();
+              }
             }
 
             // Add new tracks
@@ -1055,8 +1090,8 @@ angular.module("com.2fdevs.videogular")
         element: "msFullscreenElement",
         request: "msRequestFullscreen",
         exit: "msExitFullscreen",
-        onchange: "msfullscreenchange",
-        onerror: "msfullscreenerror"
+        onchange: "MSFullscreenChange",
+        onerror: "MSFullscreenError"
       }
     };
 
@@ -1076,16 +1111,19 @@ angular.module("com.2fdevs.videogular")
       return (document[polyfill.element] != null);
     }
 
-    this.onchange = polyfill.onchange;
-    this.onerror = polyfill.onerror;
     this.isAvailable = (polyfill != null);
-    this.isFullScreen = isFullScreen;
-    this.exit = function () {
-      document[polyfill.exit]();
-    };
-    this.request = function (elem) {
-      elem[polyfill.request]();
-    };
+
+    if (polyfill) {
+      this.onchange = polyfill.onchange;
+      this.onerror = polyfill.onerror;
+      this.isFullScreen = isFullScreen;
+      this.exit = function () {
+        document[polyfill.exit]();
+      };
+      this.request = function (elem) {
+        elem[polyfill.request]();
+      };
+    }
   }]);
 
 "use strict";
