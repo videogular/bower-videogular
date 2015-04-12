@@ -1,42 +1,43 @@
 /**
- * @license videogular v1.1.1 http://videogular.com
+ * @license videogular v1.2.0 http://videogular.com
  * Two Fucking Developers http://twofuckingdevelopers.com
  * License: MIT
  */
 "use strict";
 angular.module("com.2fdevs.videogular", ["ngSanitize"])
-  .run(
-    ["$templateCache", function($templateCache) {
-      $templateCache.put("vg-templates/vg-media-video", "<video></video>");
-      $templateCache.put("vg-templates/vg-media-audio", "<audio></audio>");
+    .run(
+    ["$templateCache", function ($templateCache) {
+        $templateCache.put("vg-templates/vg-media-video", "<video></video>");
+        $templateCache.put("vg-templates/vg-media-audio", "<audio></audio>");
 
-      // Support for browsers that doesn't have .bind()
-      if (!Function.prototype.bind) {
-        Function.prototype.bind = function(oThis) {
-          if (typeof this !== 'function') {
-            // closest thing possible to the ECMAScript 5
-            // internal IsCallable function
-            throw new TypeError('Function.prototype.bind - what is trying to be bound is not callable');
-          }
+        // Support for browsers that doesn't have .bind()
+        if (!Function.prototype.bind) {
+            Function.prototype.bind = function (oThis) {
+                if (typeof this !== 'function') {
+                    // closest thing possible to the ECMAScript 5
+                    // internal IsCallable function
+                    throw new TypeError('Function.prototype.bind - what is trying to be bound is not callable');
+                }
 
-          var aArgs   = Array.prototype.slice.call(arguments, 1),
-            fToBind = this,
-            fNOP    = function() {},
-            fBound  = function() {
-              return fToBind.apply(this instanceof fNOP
-                  ? this
-                  : oThis,
-                aArgs.concat(Array.prototype.slice.call(arguments)));
+                var aArgs = Array.prototype.slice.call(arguments, 1),
+                    fToBind = this,
+                    fNOP = function () {
+                    },
+                    fBound = function () {
+                        return fToBind.apply(this instanceof fNOP
+                                ? this
+                                : oThis,
+                            aArgs.concat(Array.prototype.slice.call(arguments)));
+                    };
+
+                fNOP.prototype = this.prototype;
+                fBound.prototype = new fNOP();
+
+                return fBound;
             };
-
-          fNOP.prototype = this.prototype;
-          fBound.prototype = new fNOP();
-
-          return fBound;
-        };
-      }
+        }
     }]
-  );
+);
 
 /**
  * @ngdoc service
@@ -48,13 +49,20 @@ angular.module("com.2fdevs.videogular", ["ngSanitize"])
  *  - VG_STATES.PAUSE: "pause"
  *  - VG_STATES.STOP: "stop"
  **/
+/**
+ * @ngdoc service
+ * @name com.2fdevs.videogular.constant:VG_VOLUME_KEY
+ *
+ * @description localStorage key name for persistent video play volume on a domain.
+ **/
 "use strict";
 angular.module("com.2fdevs.videogular")
-  .constant("VG_STATES", {
-    PLAY: "play",
-    PAUSE: "pause",
-    STOP: "stop"
-  });
+    .constant("VG_STATES", {
+        PLAY: "play",
+        PAUSE: "pause",
+        STOP: "stop"
+    })
+    .constant("VG_VOLUME_KEY", "videogularVolume");
 
 "use strict";
 /**
@@ -71,6 +79,7 @@ angular.module("com.2fdevs.videogular")
  * - playPause(): Toggles play and pause.
  * - seekTime(value, byPercent): Seeks to a specified time position. Param value must be an integer representing the target position in seconds or a percentage. By default seekTime seeks by seconds, if you want to seek by percentage just pass byPercent to true.
  * - setVolume(volume): Sets volume. Param volume must be an integer with a value between 0 and 1.
+ * - setPlayback(playback): Sets playback. Param plaback must be an integer with a value between 0 and 2.
  * - setState(state): Sets a new state. Param state mus be an string with 'play', 'pause' or 'stop'. This method only changes the state of the player, but doesn't plays, pauses or stops the media file.
  * - toggleFullScreen(): Toggles between fullscreen and normal mode.
  * - updateTheme(css-url): Removes previous CSS theme and sets a new one.
@@ -116,372 +125,398 @@ angular.module("com.2fdevs.videogular")
  * - totalTime: Number value with total media time.
  * - timeLeft: Number value with current media time left.
  * - volume: Number value with current volume between 0 and 1.
+ * - playback: Number value with current playback between 0 and 2.
  *
  */
 angular.module("com.2fdevs.videogular")
-  .controller("vgController",
-  ['$scope', '$window', 'vgConfigLoader', 'vgFullscreen', 'VG_UTILS', 'VG_STATES', function ($scope, $window, vgConfigLoader, vgFullscreen, VG_UTILS, VG_STATES) {
-    var currentTheme = null;
-    var isFullScreenPressed = false;
-    var isMetaDataLoaded = false;
+    .controller("vgController",
+    ['$scope', '$window', 'vgConfigLoader', 'vgFullscreen', 'VG_UTILS', 'VG_STATES', 'VG_VOLUME_KEY', function ($scope, $window, vgConfigLoader, vgFullscreen, VG_UTILS, VG_STATES, VG_VOLUME_KEY) {
+        var currentTheme = null;
+        var isFullScreenPressed = false;
+        var isMetaDataLoaded = false;
 
-    // PUBLIC $API
-    this.videogularElement = null;
+        // PUBLIC $API
+        this.videogularElement = null;
 
-    this.clearMedia = function () {
-      this.mediaElement[0].src = '';
-    };
+        this.clearMedia = function () {
+            this.mediaElement[0].src = '';
+        };
 
-    this.onCanPlay = function (evt) {
-      this.isBuffering = false;
-      $scope.$apply();
-    };
+        this.onCanPlay = function (evt) {
+            this.isBuffering = false;
+            $scope.$apply($scope.vgCanPlay({$event: evt}));
+        };
 
-    this.onVideoReady = function () {
-      this.isReady = true;
-      this.autoPlay = $scope.vgAutoPlay;
-      this.playsInline = $scope.vgPlaysInline;
-      this.cuePoints = $scope.vgCuePoints;
-      this.currentState = VG_STATES.STOP;
+        this.onVideoReady = function () {
+            this.isReady = true;
+            this.autoPlay = $scope.vgAutoPlay;
+            this.playsInline = $scope.vgPlaysInline;
+            this.cuePoints = $scope.vgCuePoints;
+            this.currentState = VG_STATES.STOP;
 
-      isMetaDataLoaded = true;
+            isMetaDataLoaded = true;
 
-      if ($scope.vgConfig) {
-        vgConfigLoader.loadConfig($scope.vgConfig).then(
-          this.onLoadConfig.bind(this)
-        );
-      }
-      else {
-        $scope.vgPlayerReady({$API: this});
-      }
-    };
-
-    this.onLoadConfig = function(config) {
-      this.config = config;
-
-      $scope.vgTheme = this.config.theme;
-      $scope.vgAutoPlay = this.config.autoPlay;
-      $scope.vgPlaysInline = this.config.playsInline;
-      $scope.vgCuePoints = this.config.cuePoints;
-
-      $scope.vgPlayerReady({$API: this});
-    };
-
-    this.onLoadMetaData = function (evt) {
-      this.isBuffering = false;
-      this.onUpdateTime(evt);
-    };
-
-    this.onUpdateTime = function (event) {
-      this.currentTime = 1000 * event.target.currentTime;
-
-      if (event.target.duration != Infinity) {
-        this.totalTime = 1000 * event.target.duration;
-        this.timeLeft = 1000 * (event.target.duration - event.target.currentTime);
-        this.isLive = false;
-      }
-      else {
-        // It's a live streaming without and end
-        this.isLive = true;
-      }
-
-      if (this.cuePoints) {
-        this.checkCuePoints(event.target.currentTime);
-      }
-
-      $scope.vgUpdateTime({$currentTime: event.target.currentTime, $duration: event.target.duration});
-
-      $scope.$apply();
-    };
-
-    this.checkCuePoints = function checkCuePoints(currentTime) {
-      for (var tl in this.cuePoints) {
-        for (var i=0, l=this.cuePoints[tl].length; i<l; i++) {
-          var cp = this.cuePoints[tl][i];
-
-          if (currentTime < cp.timeLapse.end) cp.$$isCompleted = false;
-
-          // Check if we've been reached to the cue point
-          if (currentTime > cp.timeLapse.start) {
-            cp.$$isDirty = true;
-
-            // We're in the timelapse
-            if (currentTime < cp.timeLapse.end) {
-              if (cp.onUpdate) cp.onUpdate(currentTime, cp.timeLapse, cp.params);
+            //Set media volume from localStorage if available
+            if (VG_UTILS.supportsLocalStorage()) {
+                //Default to 100% volume if local storage setting does not exist.
+                this.setVolume(parseFloat($window.localStorage.getItem(VG_VOLUME_KEY) || '1'));
             }
 
-            // We've been passed the cue point
-            if (currentTime >= cp.timeLapse.end) {
-              if (cp.onComplete && !cp.$$isCompleted) {
-                cp.$$isCompleted = true;
-                cp.onComplete(currentTime, cp.timeLapse, cp.params);
-              }
-            }
-          }
-          else {
-            if (cp.onLeave && cp.$$isDirty) {
-              cp.onLeave(currentTime, cp.timeLapse, cp.params);
-            }
-
-            cp.$$isDirty = false;
-          }
-        }
-      }
-    };
-
-    this.onPlay = function () {
-      this.setState(VG_STATES.PLAY);
-      $scope.$apply();
-    };
-
-    this.onPause = function () {
-      if (this.mediaElement[0].currentTime == 0) {
-        this.setState(VG_STATES.STOP);
-      }
-      else {
-        this.setState(VG_STATES.PAUSE);
-      }
-
-      $scope.$apply();
-    };
-
-    this.onVolumeChange = function () {
-      this.volume = this.mediaElement[0].volume;
-      $scope.$apply();
-    };
-
-    this.seekTime = function (value, byPercent) {
-      var second;
-      if (byPercent) {
-        second = value * this.mediaElement[0].duration / 100;
-        this.mediaElement[0].currentTime = second;
-      }
-      else {
-        second = value;
-        this.mediaElement[0].currentTime = second;
-      }
-
-      this.currentTime = 1000 * second;
-    };
-
-    this.playPause = function () {
-      if (this.mediaElement[0].paused) {
-        this.play();
-      }
-      else {
-        this.pause();
-      }
-    };
-
-    this.setState = function (newState) {
-      if (newState && newState != this.currentState) {
-        $scope.vgUpdateState({$state: newState});
-
-        this.currentState = newState;
-      }
-
-      return this.currentState;
-    };
-
-    this.play = function () {
-      this.mediaElement[0].play();
-      this.setState(VG_STATES.PLAY);
-    };
-
-    this.pause = function () {
-      this.mediaElement[0].pause();
-      this.setState(VG_STATES.PAUSE);
-    };
-
-    this.stop = function () {
-      this.mediaElement[0].pause();
-      this.mediaElement[0].currentTime = 0;
-      this.setState(VG_STATES.STOP);
-    };
-
-    this.toggleFullScreen = function () {
-      // There is no native full screen support or we want to play inline
-      if (!vgFullscreen.isAvailable || $scope.vgPlaysInline) {
-        if (this.isFullScreen) {
-          this.videogularElement.removeClass("fullscreen");
-          this.videogularElement.css("z-index", "auto");
-        }
-        else {
-          this.videogularElement.addClass("fullscreen");
-          this.videogularElement.css("z-index", VG_UTILS.getZIndex());
-        }
-
-        this.isFullScreen = !this.isFullScreen;
-      }
-      // Perform native full screen support
-      else {
-        if (this.isFullScreen) {
-          if (!VG_UTILS.isMobileDevice()) {
-            vgFullscreen.exit();
-          }
-        }
-        else {
-          // On mobile devices we should make fullscreen only the video object
-          if (VG_UTILS.isMobileDevice()) {
-            // On iOS we should check if user pressed before fullscreen button
-            // and also if metadata is loaded
-            if (VG_UTILS.isiOSDevice()) {
-              if (isMetaDataLoaded) {
-                this.enterElementInFullScreen(this.mediaElement[0]);
-              }
-              else {
-                isFullScreenPressed = true;
-                this.play();
-              }
+            if ($scope.vgConfig) {
+                vgConfigLoader.loadConfig($scope.vgConfig).then(
+                    this.onLoadConfig.bind(this)
+                );
             }
             else {
-              this.enterElementInFullScreen(this.mediaElement[0]);
+                $scope.vgPlayerReady({$API: this});
             }
-          }
-          else {
-            this.enterElementInFullScreen(this.videogularElement[0]);
-          }
-        }
-      }
-    };
+        };
 
-    this.enterElementInFullScreen = function (element) {
-      vgFullscreen.request(element);
-    };
+        this.onLoadConfig = function (config) {
+            this.config = config;
 
-    this.changeSource = function (newValue) {
-      $scope.vgChangeSource({$source: newValue});
-    };
+            $scope.vgTheme = this.config.theme;
+            $scope.vgAutoPlay = this.config.autoPlay;
+            $scope.vgPlaysInline = this.config.playsInline;
+            $scope.vgCuePoints = this.config.cuePoints;
 
-    this.setVolume = function (newVolume) {
-      $scope.vgUpdateVolume({$volume: newVolume});
+            $scope.vgPlayerReady({$API: this});
+        };
 
-      this.mediaElement[0].volume = newVolume;
-      this.volume = newVolume;
-    };
+        this.onLoadMetaData = function (evt) {
+            this.isBuffering = false;
+            this.onUpdateTime(evt);
+        };
 
-    this.updateTheme = function (value) {
-      var links = document.getElementsByTagName("link");
-      var i;
-      var l;
+        this.onUpdateTime = function (event) {
+            this.currentTime = 1000 * event.target.currentTime;
 
-      // Remove previous theme
-      if (currentTheme) {
-        for (i = 0, l = links.length; i < l; i++) {
-          if (links[i].outerHTML.indexOf(currentTheme) >= 0) {
-            
-            links[i].parentNode.removeChild(links[i]);
-            break;
-          }
-        }
-      }
+            if (event.target.duration != Infinity) {
+                this.totalTime = 1000 * event.target.duration;
+                this.timeLeft = 1000 * (event.target.duration - event.target.currentTime);
+                this.isLive = false;
+            }
+            else {
+                // It's a live streaming without and end
+                this.isLive = true;
+            }
 
-      if (value) {
-        var headElem = angular.element(document).find("head");
-        var exists = false;
+            if (this.cuePoints) {
+                this.checkCuePoints(event.target.currentTime);
+            }
 
-        // Look if theme already exists
-        for (i = 0, l = links.length; i < l; i++) {
-          exists = (links[i].outerHTML.indexOf(value) >= 0);
-          if (exists) break;
-        }
+            $scope.vgUpdateTime({$currentTime: event.target.currentTime, $duration: event.target.duration});
 
-        if (!exists) {
-          headElem.append("<link rel='stylesheet' href='" + value + "'>");
-        }
+            $scope.$apply();
+        };
 
-        currentTheme = value;
-      }
-    };
+        this.checkCuePoints = function checkCuePoints(currentTime) {
+            for (var tl in this.cuePoints) {
+                for (var i = 0, l = this.cuePoints[tl].length; i < l; i++) {
+                    var cp = this.cuePoints[tl][i];
 
-    this.onStartBuffering = function (event) {
-      this.isBuffering = true;
-      $scope.$apply();
-    };
+                    if (currentTime < cp.timeLapse.end) cp.$$isCompleted = false;
 
-    this.onStartPlaying = function (event) {
-      this.isBuffering = false;
-      $scope.$apply();
-    };
+                    // Check if we've been reached to the cue point
+                    if (currentTime > cp.timeLapse.start) {
+                        cp.$$isDirty = true;
 
-    this.onComplete = function (event) {
-      $scope.vgComplete();
+                        // We're in the timelapse
+                        if (currentTime < cp.timeLapse.end) {
+                            if (cp.onUpdate) cp.onUpdate(currentTime, cp.timeLapse, cp.params);
+                        }
 
-      this.setState(VG_STATES.STOP);
-      this.isCompleted = true;
-      $scope.$apply();
-    };
+                        // We've been passed the cue point
+                        if (currentTime >= cp.timeLapse.end) {
+                            if (cp.onComplete && !cp.$$isCompleted) {
+                                cp.$$isCompleted = true;
+                                cp.onComplete(currentTime, cp.timeLapse, cp.params);
+                            }
+                        }
+                    }
+                    else {
+                        if (cp.onLeave && cp.$$isDirty) {
+                            cp.onLeave(currentTime, cp.timeLapse, cp.params);
+                        }
 
-    this.onVideoError = function (event) {
-      $scope.vgError({$event: event});
-    };
+                        cp.$$isDirty = false;
+                    }
+                }
+            }
+        };
 
-    this.addListeners = function () {
-      this.mediaElement[0].addEventListener("canplay", this.onCanPlay.bind(this), false);
-      this.mediaElement[0].addEventListener("loadedmetadata", this.onLoadMetaData.bind(this), false);
-      this.mediaElement[0].addEventListener("waiting", this.onStartBuffering.bind(this), false);
-      this.mediaElement[0].addEventListener("ended", this.onComplete.bind(this), false);
-      this.mediaElement[0].addEventListener("playing", this.onStartPlaying.bind(this), false);
-      this.mediaElement[0].addEventListener("play", this.onPlay.bind(this), false);
-      this.mediaElement[0].addEventListener("pause", this.onPause.bind(this), false);
-      this.mediaElement[0].addEventListener("volumechange", this.onVolumeChange.bind(this), false);
-      this.mediaElement[0].addEventListener("timeupdate", this.onUpdateTime.bind(this), false);
-      this.mediaElement[0].addEventListener("error", this.onVideoError.bind(this), false);
-    };
+        this.onPlay = function () {
+            this.setState(VG_STATES.PLAY);
+            $scope.$apply();
+        };
 
-    this.init = function () {
-      this.isReady = false;
-      this.isCompleted = false;
-      this.currentTime = 0;
-      this.totalTime = 0;
-      this.timeLeft = 0;
-      this.isLive = false;
-      this.isFullScreen = false;
-      this.isConfig = ($scope.vgConfig != undefined);
+        this.onPause = function () {
+            if (this.mediaElement[0].currentTime == 0) {
+                this.setState(VG_STATES.STOP);
+            }
+            else {
+                this.setState(VG_STATES.PAUSE);
+            }
 
-      if (vgFullscreen.isAvailable) {
-        this.isFullScreen = vgFullscreen.isFullScreen();
-      }
+            $scope.$apply();
+        };
 
-      this.updateTheme($scope.vgTheme);
-      this.addBindings();
+        this.onVolumeChange = function () {
+            this.volume = this.mediaElement[0].volume;
+            $scope.$apply();
+        };
 
-      if (vgFullscreen.isAvailable) {
-        document.addEventListener(vgFullscreen.onchange, this.onFullScreenChange.bind(this));
-      }
-    };
+        this.onPlaybackChange = function () {
+            this.playback = this.mediaElement[0].playbackRate;
+            $scope.$apply();
+        };
 
-    this.onUpdateTheme = function onUpdateTheme(newValue) {
-      this.updateTheme(newValue);
-    };
+        this.seekTime = function (value, byPercent) {
+            var second;
+            if (byPercent) {
+                second = value * this.mediaElement[0].duration / 100;
+                this.mediaElement[0].currentTime = second;
+            }
+            else {
+                second = value;
+                this.mediaElement[0].currentTime = second;
+            }
 
-    this.onUpdateAutoPlay = function onUpdateAutoPlay(newValue) {
-      if (newValue) this.play(this);
-    };
+            this.currentTime = 1000 * second;
+        };
 
-    this.addBindings = function () {
-      $scope.$watch("vgTheme", this.onUpdateTheme.bind(this));
+        this.playPause = function () {
+            if (this.mediaElement[0].paused) {
+                this.play();
+            }
+            else {
+                this.pause();
+            }
+        };
 
-      $scope.$watch("vgAutoPlay", this.onUpdateAutoPlay.bind(this));
+        this.setState = function (newState) {
+            if (newState && newState != this.currentState) {
+                $scope.vgUpdateState({$state: newState});
 
-      $scope.$watch("vgPlaysInline", function (newValue, oldValue) {
-        this.playsInline = newValue;
-      });
-    };
+                this.currentState = newState;
+            }
 
-    this.onFullScreenChange = function (event) {
-      this.isFullScreen = vgFullscreen.isFullScreen();
-      $scope.$apply();
-    };
+            return this.currentState;
+        };
 
-    // Empty mediaElement on destroy to avoid that Chrome downloads video even when it's not present
-    $scope.$on('$destroy', this.clearMedia.bind(this));
+        this.play = function () {
+            this.mediaElement[0].play();
+            this.setState(VG_STATES.PLAY);
+        };
 
-    // Empty mediaElement when router changes
-    $scope.$on('$routeChangeStart', this.clearMedia.bind(this));
+        this.pause = function () {
+            this.mediaElement[0].pause();
+            this.setState(VG_STATES.PAUSE);
+        };
 
-    this.init();
-  }]
+        this.stop = function () {
+            this.mediaElement[0].pause();
+            this.mediaElement[0].currentTime = 0;
+            this.setState(VG_STATES.STOP);
+        };
+
+        this.toggleFullScreen = function () {
+            // There is no native full screen support or we want to play inline
+            if (!vgFullscreen.isAvailable || $scope.vgPlaysInline) {
+                if (this.isFullScreen) {
+                    this.videogularElement.removeClass("fullscreen");
+                    this.videogularElement.css("z-index", "auto");
+                }
+                else {
+                    this.videogularElement.addClass("fullscreen");
+                    this.videogularElement.css("z-index", VG_UTILS.getZIndex());
+                }
+
+                this.isFullScreen = !this.isFullScreen;
+            }
+            // Perform native full screen support
+            else {
+                if (this.isFullScreen) {
+                    if (!VG_UTILS.isMobileDevice()) {
+                        vgFullscreen.exit();
+                    }
+                }
+                else {
+                    // On mobile devices we should make fullscreen only the video object
+                    if (VG_UTILS.isMobileDevice()) {
+                        // On iOS we should check if user pressed before fullscreen button
+                        // and also if metadata is loaded
+                        if (VG_UTILS.isiOSDevice()) {
+                            if (isMetaDataLoaded) {
+                                this.enterElementInFullScreen(this.mediaElement[0]);
+                            }
+                            else {
+                                isFullScreenPressed = true;
+                                this.play();
+                            }
+                        }
+                        else {
+                            this.enterElementInFullScreen(this.mediaElement[0]);
+                        }
+                    }
+                    else {
+                        this.enterElementInFullScreen(this.videogularElement[0]);
+                    }
+                }
+            }
+        };
+
+        this.enterElementInFullScreen = function (element) {
+            vgFullscreen.request(element);
+        };
+
+        this.changeSource = function (newValue) {
+            $scope.vgChangeSource({$source: newValue});
+        };
+
+        this.setVolume = function (newVolume) {
+            $scope.vgUpdateVolume({$volume: newVolume});
+
+            this.mediaElement[0].volume = newVolume;
+            this.volume = newVolume;
+
+            //Push volume updates to localStorage so that future instances resume volume
+            if (VG_UTILS.supportsLocalStorage()) {
+                //TODO: Improvement: concat key with current page or "video player id" to create separate stored volumes.
+                $window.localStorage.setItem(VG_VOLUME_KEY, newVolume.toString());
+            }
+        };
+
+        this.setPlayback = function (newPlayback) {
+            $scope.vgUpdatePlayback({$playBack: newPlayback});
+
+            this.mediaElement[0].playbackRate = newPlayback;
+            this.playback = newPlayback;
+        };
+
+        this.updateTheme = function (value) {
+            var links = document.getElementsByTagName("link");
+            var i;
+            var l;
+
+            // Remove previous theme
+            if (currentTheme) {
+                for (i = 0, l = links.length; i < l; i++) {
+                    if (links[i].outerHTML.indexOf(currentTheme) >= 0) {
+
+                        links[i].parentNode.removeChild(links[i]);
+                        break;
+                    }
+                }
+            }
+
+            if (value) {
+                var headElem = angular.element(document).find("head");
+                var exists = false;
+
+                // Look if theme already exists
+                for (i = 0, l = links.length; i < l; i++) {
+                    exists = (links[i].outerHTML.indexOf(value) >= 0);
+                    if (exists) break;
+                }
+
+                if (!exists) {
+                    headElem.append("<link rel='stylesheet' href='" + value + "'>");
+                }
+
+                currentTheme = value;
+            }
+        };
+
+        this.onStartBuffering = function (event) {
+            this.isBuffering = true;
+            $scope.$apply();
+        };
+
+        this.onStartPlaying = function (event) {
+            this.isBuffering = false;
+            $scope.$apply();
+        };
+
+        this.onComplete = function (event) {
+            $scope.vgComplete();
+
+            this.setState(VG_STATES.STOP);
+            this.isCompleted = true;
+            $scope.$apply();
+        };
+
+        this.onVideoError = function (event) {
+            $scope.vgError({$event: event});
+        };
+
+        this.addListeners = function () {
+            this.mediaElement[0].addEventListener("canplay", this.onCanPlay.bind(this), false);
+            this.mediaElement[0].addEventListener("loadedmetadata", this.onLoadMetaData.bind(this), false);
+            this.mediaElement[0].addEventListener("waiting", this.onStartBuffering.bind(this), false);
+            this.mediaElement[0].addEventListener("ended", this.onComplete.bind(this), false);
+            this.mediaElement[0].addEventListener("playing", this.onStartPlaying.bind(this), false);
+            this.mediaElement[0].addEventListener("play", this.onPlay.bind(this), false);
+            this.mediaElement[0].addEventListener("pause", this.onPause.bind(this), false);
+            this.mediaElement[0].addEventListener("volumechange", this.onVolumeChange.bind(this), false);
+            this.mediaElement[0].addEventListener("playbackchange", this.onPlaybackChange.bind(this), false);
+            this.mediaElement[0].addEventListener("timeupdate", this.onUpdateTime.bind(this), false);
+            this.mediaElement[0].addEventListener("error", this.onVideoError.bind(this), false);
+        };
+
+        this.init = function () {
+            this.isReady = false;
+            this.isCompleted = false;
+            this.currentTime = 0;
+            this.totalTime = 0;
+            this.timeLeft = 0;
+            this.isLive = false;
+            this.isFullScreen = false;
+            this.isConfig = ($scope.vgConfig != undefined);
+
+            if (vgFullscreen.isAvailable) {
+                this.isFullScreen = vgFullscreen.isFullScreen();
+            }
+
+            this.updateTheme($scope.vgTheme);
+            this.addBindings();
+
+            if (vgFullscreen.isAvailable) {
+                document.addEventListener(vgFullscreen.onchange, this.onFullScreenChange.bind(this));
+            }
+        };
+
+        this.onUpdateTheme = function onUpdateTheme(newValue) {
+            this.updateTheme(newValue);
+        };
+
+        this.onUpdateAutoPlay = function onUpdateAutoPlay(newValue) {
+            if (newValue) this.play(this);
+        };
+
+        this.addBindings = function () {
+            $scope.$watch("vgTheme", this.onUpdateTheme.bind(this));
+
+            $scope.$watch("vgAutoPlay", this.onUpdateAutoPlay.bind(this));
+
+            $scope.$watch("vgPlaysInline", function (newValue, oldValue) {
+                this.playsInline = newValue;
+            });
+        };
+
+        this.onFullScreenChange = function (event) {
+            this.isFullScreen = vgFullscreen.isFullScreen();
+            $scope.$apply();
+        };
+
+        // Empty mediaElement on destroy to avoid that Chrome downloads video even when it's not present
+        $scope.$on('$destroy', this.clearMedia.bind(this));
+
+        // Empty mediaElement when router changes
+        $scope.$on('$routeChangeStart', this.clearMedia.bind(this));
+
+        this.init();
+    }]
 );
 
 /**
@@ -494,61 +529,61 @@ angular.module("com.2fdevs.videogular")
  */
 "use strict";
 angular.module("com.2fdevs.videogular")
-  .directive("vgLoop",
-  [function () {
-    return {
-      restrict: "A",
-      require: "^videogular",
-      link: {
-        pre: function (scope, elem, attr, API) {
-          var loop;
+    .directive("vgLoop",
+    [function () {
+        return {
+            restrict: "A",
+            require: "^videogular",
+            link: {
+                pre: function (scope, elem, attr, API) {
+                    var loop;
 
-          scope.setLoop = function setLoop(value) {
-            if (value) {
-              API.mediaElement.attr("loop", value);
-            }
-            else {
-              API.mediaElement.removeAttr("loop");
-            }
-          };
+                    scope.setLoop = function setLoop(value) {
+                        if (value) {
+                            API.mediaElement.attr("loop", value);
+                        }
+                        else {
+                            API.mediaElement.removeAttr("loop");
+                        }
+                    };
 
-          if (API.isConfig) {
-            scope.$watch(
-              function() {
-                return API.config;
-              },
-              function() {
-                if (API.config) {
-                  scope.setLoop(API.config.loop);
+                    if (API.isConfig) {
+                        scope.$watch(
+                            function () {
+                                return API.config;
+                            },
+                            function () {
+                                if (API.config) {
+                                    scope.setLoop(API.config.loop);
+                                }
+                            }
+                        );
+                    }
+                    else {
+                        scope.$watch(attr.vgLoop, function (newValue, oldValue) {
+                            if ((!loop || newValue != oldValue) && newValue) {
+                                loop = newValue;
+                                scope.setLoop(loop);
+                            }
+                            else {
+                                scope.setLoop();
+                            }
+                        });
+                    }
                 }
-              }
-            );
-          }
-          else {
-            scope.$watch(attr.vgLoop, function (newValue, oldValue) {
-              if ((!loop || newValue != oldValue) && newValue) {
-                loop = newValue;
-                scope.setLoop(loop);
-              }
-              else {
-                scope.setLoop();
-              }
-            });
-          }
+            }
         }
-      }
     }
-  }
-  ]);
+    ]);
 
 /**
  * @ngdoc directive
  * @name com.2fdevs.videogular.direcitve:vgMedia
  * @restrict E
  * @description
- * Directive to add a source of videos or audios. This directive will create a &lt;video&gt; tag and usually will be above plugin tags.
+ * Directive to add a source of videos or audios. This directive will create a &lt;video&gt; or &lt;audio&gt; tag and usually will be above plugin tags.
  *
- * @param {array} vgSrc Bindable array with a list of media sources. A media source is an object with two properties `src` and `type`. The `src` property must contains a trusful url resource.
+ * @param {array} vgSrc Bindable array with a list of media sources. A media source is an object with two properties `src` and `type`. The `src` property must contains a trustful url resource.
  * @param {string} vgType String with "video" or "audio" values to set a <video> or <audio> tag inside <vg-media>.
  * <pre>
  * {
@@ -560,103 +595,107 @@ angular.module("com.2fdevs.videogular")
  */
 "use strict";
 angular.module("com.2fdevs.videogular")
-  .directive("vgMedia",
-  ["$timeout", "VG_UTILS", "VG_STATES", function ($timeout, VG_UTILS, VG_STATES) {
-    return {
-      restrict: "E",
-      require: "^videogular",
-      templateUrl: function(elem, attrs) {
-        var vgType = attrs.vgType || "video";
-        return attrs.vgTemplate || "vg-templates/vg-media-" + vgType;
-      },
-      scope: {
-        vgSrc: "=?",
-        vgType: "=?"
-      },
-      link: function (scope, elem, attrs, API) {
-        var sources;
-
-        // what type of media do we want? defaults to 'video'
-        if (!attrs.vgType || attrs.vgType === "video") {
-          attrs.vgType = "video";
-        }
-        else {
-          attrs.vgType = "audio";
-        }
-
-        // FUNCTIONS
-        scope.onChangeSource = function onChangeSource(newValue, oldValue) {
-          if ((!sources || newValue != oldValue) && newValue) {
-            sources = newValue;
-
-            if(API.currentState !== VG_STATES.PLAY) {
-              API.currentState = VG_STATES.STOP;
-            }
-
-            API.sources = sources;
-            scope.changeSource();
-          }
-        };
-
-        scope.changeSource = function changeSource() {
-          var canPlay = "";
-
-          // It's a cool browser
-          if (API.mediaElement[0].canPlayType) {
-            for (var i = 0, l = sources.length; i < l; i++) {
-              canPlay = API.mediaElement[0].canPlayType(sources[i].type);
-
-              if (canPlay == "maybe" || canPlay == "probably") {
-                API.mediaElement.attr("src", sources[i].src);
-                API.mediaElement.attr("type", sources[i].type);
-                break;
-              }
-            }
-          }
-          // It's a crappy browser and it doesn't deserve any respect
-          else {
-            // Get H264 or the first one
-            API.mediaElement.attr("src", sources[0].src);
-            API.mediaElement.attr("type", sources[0].type);
-          }
-
-          // Android 2.3 support: https://github.com/2fdevs/videogular/issues/187
-          API.mediaElement[0].load();
-
-          $timeout(function() {
-            if (API.autoPlay && !VG_UTILS.isMobileDevice() || API.currentState === VG_STATES.PLAY) API.play();
-          });
-
-          if (canPlay == "") {
-            API.onVideoError();
-          }
-        };
-
-        // INIT
-        API.mediaElement = elem.find(attrs.vgType);
-        API.sources = scope.vgSrc;
-
-        API.addListeners();
-        API.onVideoReady();
-
-        scope.$watch("vgSrc", scope.onChangeSource);
-
-        if (API.isConfig) {
-          scope.$watch(
-            function() {
-              return API.config;
+    .directive("vgMedia",
+    ["$timeout", "VG_UTILS", "VG_STATES", function ($timeout, VG_UTILS, VG_STATES) {
+        return {
+            restrict: "E",
+            require: "^videogular",
+            templateUrl: function (elem, attrs) {
+                var vgType = attrs.vgType || "video";
+                return attrs.vgTemplate || "vg-templates/vg-media-" + vgType;
             },
-            function() {
-              if (API.config) {
-                scope.vgSrc = API.config.sources;
-              }
+            scope: {
+                vgSrc: "=?",
+                vgType: "=?"
+            },
+            link: function (scope, elem, attrs, API) {
+                var sources;
+
+                // what type of media do we want? defaults to 'video'
+                if (!attrs.vgType || attrs.vgType === "video") {
+                    attrs.vgType = "video";
+                }
+                else {
+                    attrs.vgType = "audio";
+                }
+
+                // FUNCTIONS
+                scope.onChangeSource = function onChangeSource(newValue, oldValue) {
+                    if ((!sources || newValue != oldValue) && newValue) {
+                        sources = newValue;
+
+                        if (API.currentState !== VG_STATES.PLAY) {
+                            API.currentState = VG_STATES.STOP;
+                        }
+
+                        API.sources = sources;
+                        scope.changeSource();
+                    }
+                };
+
+                scope.changeSource = function changeSource() {
+                    var canPlay = "";
+
+                    // It's a cool browser
+                    if (API.mediaElement[0].canPlayType) {
+                        for (var i = 0, l = sources.length; i < l; i++) {
+                            canPlay = API.mediaElement[0].canPlayType(sources[i].type);
+
+                            if (canPlay == "maybe" || canPlay == "probably") {
+                                API.mediaElement.attr("src", sources[i].src);
+                                API.mediaElement.attr("type", sources[i].type);
+                                //Trigger vgChangeSource($source) API callback in vgController
+                                API.changeSource(sources[i]);
+                                break;
+                            }
+                        }
+                    }
+                    // It's a crappy browser and it doesn't deserve any respect
+                    else {
+                        // Get H264 or the first one
+                        API.mediaElement.attr("src", sources[0].src);
+                        API.mediaElement.attr("type", sources[0].type);
+                        //Trigger vgChangeSource($source) API callback in vgController
+                        API.changeSource(sources[0]);
+                    }
+
+                    // Android 2.3 support: https://github.com/2fdevs/videogular/issues/187
+                    API.mediaElement[0].load();
+
+                    $timeout(function () {
+                        if (API.autoPlay && !VG_UTILS.isMobileDevice() || API.currentState === VG_STATES.PLAY) API.play();
+                    });
+
+                    if (canPlay == "") {
+                        API.onVideoError();
+                    }
+                };
+
+                // INIT
+                API.mediaElement = elem.find(attrs.vgType);
+                API.sources = scope.vgSrc;
+
+                API.addListeners();
+                API.onVideoReady();
+
+                scope.$watch("vgSrc", scope.onChangeSource);
+
+                if (API.isConfig) {
+                    scope.$watch(
+                        function () {
+                            return API.config;
+                        },
+                        function () {
+                            if (API.config) {
+                                scope.vgSrc = API.config.sources;
+                            }
+                        }
+                    );
+                }
             }
-          );
         }
-      }
     }
-  }
-  ]);
+    ]);
 
 /**
  * @ngdoc directive
@@ -668,52 +707,52 @@ angular.module("com.2fdevs.videogular")
  */
 "use strict";
 angular.module("com.2fdevs.videogular")
-  .directive("vgNativeControls",
-  [function () {
-    return {
-      restrict: "A",
-      require: "^videogular",
-      link: {
-        pre: function (scope, elem, attr, API) {
-          var controls;
+    .directive("vgNativeControls",
+    [function () {
+        return {
+            restrict: "A",
+            require: "^videogular",
+            link: {
+                pre: function (scope, elem, attr, API) {
+                    var controls;
 
-          scope.setControls = function setControls(value) {
-            if (value) {
-              API.mediaElement.attr("controls", value);
-            }
-            else {
-              API.mediaElement.removeAttr("controls");
-            }
-          };
+                    scope.setControls = function setControls(value) {
+                        if (value) {
+                            API.mediaElement.attr("controls", value);
+                        }
+                        else {
+                            API.mediaElement.removeAttr("controls");
+                        }
+                    };
 
-          if (API.isConfig) {
-            scope.$watch(
-              function() {
-                return API.config;
-              },
-              function() {
-                if (API.config) {
-                  scope.setControls(API.config.controls);
+                    if (API.isConfig) {
+                        scope.$watch(
+                            function () {
+                                return API.config;
+                            },
+                            function () {
+                                if (API.config) {
+                                    scope.setControls(API.config.controls);
+                                }
+                            }
+                        );
+                    }
+                    else {
+                        scope.$watch(attr.vgNativeControls, function (newValue, oldValue) {
+                            if ((!controls || newValue != oldValue) && newValue) {
+                                controls = newValue;
+                                scope.setControls(controls);
+                            }
+                            else {
+                                scope.setControls();
+                            }
+                        });
+                    }
                 }
-              }
-            );
-          }
-          else {
-            scope.$watch(attr.vgNativeControls, function (newValue, oldValue) {
-              if ((!controls || newValue != oldValue) && newValue) {
-                controls = newValue;
-                scope.setControls(controls);
-              }
-              else {
-                scope.setControls();
-              }
-            });
-          }
+            }
         }
-      }
     }
-  }
-  ]);
+    ]);
 
 /**
  * @ngdoc directive
@@ -725,52 +764,52 @@ angular.module("com.2fdevs.videogular")
  */
 "use strict";
 angular.module("com.2fdevs.videogular")
-  .directive("vgPreload",
-  [function () {
-    return {
-      restrict: "A",
-      require: "^videogular",
-      link: {
-        pre: function (scope, elem, attr, API) {
-          var preload;
+    .directive("vgPreload",
+    [function () {
+        return {
+            restrict: "A",
+            require: "^videogular",
+            link: {
+                pre: function (scope, elem, attr, API) {
+                    var preload;
 
-          scope.setPreload = function setPreload(value) {
-            if (value) {
-              API.mediaElement.attr("preload", value);
-            }
-            else {
-              API.mediaElement.removeAttr("preload");
-            }
-          };
+                    scope.setPreload = function setPreload(value) {
+                        if (value) {
+                            API.mediaElement.attr("preload", value);
+                        }
+                        else {
+                            API.mediaElement.removeAttr("preload");
+                        }
+                    };
 
-          if (API.isConfig) {
-            scope.$watch(
-              function() {
-                return API.config;
-              },
-              function() {
-                if (API.config) {
-                  scope.setPreload(API.config.preload);
+                    if (API.isConfig) {
+                        scope.$watch(
+                            function () {
+                                return API.config;
+                            },
+                            function () {
+                                if (API.config) {
+                                    scope.setPreload(API.config.preload);
+                                }
+                            }
+                        );
+                    }
+                    else {
+                        scope.$watch(attr.vgPreload, function (newValue, oldValue) {
+                            if ((!preload || newValue != oldValue) && newValue) {
+                                preload = newValue;
+                                scope.setPreload(preload);
+                            }
+                            else {
+                                scope.setPreload();
+                            }
+                        });
+                    }
                 }
-              }
-            );
-          }
-          else {
-            scope.$watch(attr.vgPreload, function (newValue, oldValue) {
-              if ((!preload || newValue != oldValue) && newValue) {
-                preload = newValue;
-                scope.setPreload(preload);
-              }
-              else {
-                scope.setPreload();
-              }
-            });
-          }
+            }
         }
-      }
     }
-  }
-  ]);
+    ]);
 
 /**
  * @ngdoc directive
@@ -792,77 +831,77 @@ angular.module("com.2fdevs.videogular")
  */
 "use strict";
 angular.module("com.2fdevs.videogular")
-  .directive("vgTracks",
-  [function () {
-    return {
-      restrict: "A",
-      require: "^videogular",
-      link: {
-        pre: function (scope, elem, attr, API) {
-          var tracks;
-          var trackText;
-          var i;
-          var l;
+    .directive("vgTracks",
+    [function () {
+        return {
+            restrict: "A",
+            require: "^videogular",
+            link: {
+                pre: function (scope, elem, attr, API) {
+                    var tracks;
+                    var trackText;
+                    var i;
+                    var l;
 
-          scope.changeSource = function changeSource() {
-            // Remove previous tracks
-            var oldTracks = API.mediaElement.children();
+                    scope.changeSource = function changeSource() {
+                        // Remove previous tracks
+                        var oldTracks = API.mediaElement.children();
 
-            for (i = 0, l = oldTracks.length; i < l; i++) {
-              if (oldTracks[i].remove) {
-                oldTracks[i].remove();
-              }
-            }
+                        for (i = 0, l = oldTracks.length; i < l; i++) {
+                            if (oldTracks[i].remove) {
+                                oldTracks[i].remove();
+                            }
+                        }
 
-            // Add new tracks
-            if (tracks) {
-              for (i = 0, l = tracks.length; i < l; i++) {
-                trackText = "";
-                trackText += '<track ';
+                        // Add new tracks
+                        if (tracks) {
+                            for (i = 0, l = tracks.length; i < l; i++) {
+                                trackText = "";
+                                trackText += '<track ';
 
-                // Add track properties
-                for (var prop in tracks[i]) {
-                  trackText += prop + '="' + tracks[i][prop] + '" ';
+                                // Add track properties
+                                for (var prop in tracks[i]) {
+                                    trackText += prop + '="' + tracks[i][prop] + '" ';
+                                }
+
+                                trackText += '></track>';
+
+                                API.mediaElement.append(trackText);
+                            }
+                        }
+                    };
+
+                    scope.setTracks = function setTracks(value) {
+                        // Add tracks to the API to have it available for other plugins (like controls)
+                        tracks = value;
+                        API.tracks = value;
+                        scope.changeSource();
+                    };
+
+                    if (API.isConfig) {
+                        scope.$watch(
+                            function () {
+                                return API.config;
+                            },
+                            function () {
+                                if (API.config) {
+                                    scope.setTracks(API.config.tracks);
+                                }
+                            }
+                        );
+                    }
+                    else {
+                        scope.$watch(attr.vgTracks, function (newValue, oldValue) {
+                            if ((!tracks || newValue != oldValue)) {
+                                scope.setTracks(newValue);
+                            }
+                        });
+                    }
                 }
-
-                trackText += '></track>';
-
-                API.mediaElement.append(trackText);
-              }
             }
-          };
-
-          scope.setTracks = function setTracks(value) {
-            // Add tracks to the API to have it available for other plugins (like controls)
-            tracks = value;
-            API.tracks = value;
-            scope.changeSource();
-          };
-
-          if (API.isConfig) {
-            scope.$watch(
-              function() {
-                return API.config;
-              },
-              function() {
-                if (API.config) {
-                  scope.setTracks(API.config.tracks);
-                }
-              }
-            );
-          }
-          else {
-            scope.$watch(attr.vgTracks, function (newValue, oldValue) {
-              if ((!tracks || newValue != oldValue)) {
-                scope.setTracks(newValue);
-              }
-            });
-          }
         }
-      }
     }
-  }
-  ]);
+    ]);
 
 /**
  * @ngdoc directive
@@ -882,75 +921,79 @@ angular.module("com.2fdevs.videogular")
  *
  * **This parameter is disabled in mobile devices** because user must click on content to prevent consuming mobile data plans.
  *
- * @param {object} vgCuePoints Bindable object containing a list of timelines with cue points objects. A timeline is an array of objects with three properties `timelapse`, `expression` and `params`.
- * - The `timelapse` is an object with two properties `start` and `end` representing in seconds the period for this cue points.
- * - The `expression` is an AngularJS expression to evaluate or a function.
- * - The `params` an object with values available to evaluate inside the expression as `$params`. This object is also received in the function defined in `expression`.
+ * @param {object} vgCuePoints Bindable object containing a list of timelines with cue points objects. A timeline is an array of objects with the following properties:
+ * - `timeLapse` is an object with two properties `start` and `end` representing in seconds the period for this cue points.
+ * - `onLeave` callback called when user seeks backwards and leave the current cue point or a completed cue point. callback(currentTime, timeLapse, params)
+ * - `onUpdate` callback called when the current time is between timeLapse.start and timeLapse.end. callback(currentTime, timeLapse, params)
+ * - `onComplete` callback called when the user seek forward or the current time passes timeLapse.end property. callback(currentTime, timeLapse, params)
+ * - `params` an object with values available to receive in the callback..
  *
  * @param {function} vgConfig String with a url to a config file. Config file's must be a JSON file object with the following structure:
  * <pre>
-{
-  "controls": false,
-  "loop": false,
-  "autoplay": false,
-  "preload": "auto",
-  "theme": "path/to/videogular.css",
-  "sources": [
-    {
-      "src": "path/to/videogular.mp4",
-      "type": "video/mp4"
-    },
-    {
-      "src": "path/to/videogular.webm",
-      "type": "video/webm"
-    },
-    {
-      "src": "path/to/videogular.ogg",
-      "type": "video/ogg"
-    }
-  ],
-  "tracks": [
-    {
-      "src": "path/to/pale-blue-dot.vtt",
-      "kind": "subtitles",
-      "srclang": "en",
-      "label": "English",
-      "default": ""
-    }
-  ],
-  "plugins": {
-    "controls": {
-      "autohide": true,
-      "autohideTime": 3000
-    },
-    "poster": {
-      "url": "path/to/earth.png"
-    },
-    "ima-ads": {
-      "companion": "companionAd",
-      "companionSize": [728, 90],
-      "network": "6062",
-      "unitPath": "iab_vast_samples",
-      "adTagUrl": "http://pubads.g.doubleclick.net/gampad/ads?sz=640x480&iu=%2F3510761%2FadRulesSampleTags&ciu_szs=160x600%2C300x250%2C728x90&cust_params=adrule%3Dpremidpostpodandbumpers&impl=s&gdfp_req=1&env=vp&ad_rule=1&vid=47570401&cmsid=481&output=xml_vast2&unviewed_position_start=1&url=[referrer_url]&correlator=[timestamp]",
-      "skipButton": "<div class='skipButton'>skip ad</div>"
-    },
-    "analytics": {
-      "category": "Videogular",
-      "label": "Main",
-      "events": {
-        "ready": true,
-        "play": true,
-        "pause": true,
-        "stop": true,
-        "complete": true,
-        "progress": 10
-      }
-    }
-  }
-}
+ {
+   "controls": false,
+   "loop": false,
+   "autoplay": false,
+   "preload": "auto",
+   "theme": "path/to/videogular.css",
+   "sources": [
+     {
+       "src": "path/to/videogular.mp4",
+       "type": "video/mp4"
+     },
+     {
+       "src": "path/to/videogular.webm",
+       "type": "video/webm"
+     },
+     {
+       "src": "path/to/videogular.ogg",
+       "type": "video/ogg"
+     }
+   ],
+   "tracks": [
+     {
+       "src": "path/to/pale-blue-dot.vtt",
+       "kind": "subtitles",
+       "srclang": "en",
+       "label": "English",
+       "default": ""
+     }
+   ],
+   "plugins": {
+     "controls": {
+       "autohide": true,
+       "autohideTime": 3000
+     },
+     "poster": {
+       "url": "path/to/earth.png"
+     },
+     "ima-ads": {
+       "companion": "companionAd",
+       "companionSize": [728, 90],
+       "network": "6062",
+       "unitPath": "iab_vast_samples",
+       "adTagUrl": "http://pubads.g.doubleclick.net/gampad/ads?sz=640x480&iu=%2F3510761%2FadRulesSampleTags&ciu_szs=160x600%2C300x250%2C728x90&cust_params=adrule%3Dpremidpostpodandbumpers&impl=s&gdfp_req=1&env=vp&ad_rule=1&vid=47570401&cmsid=481&output=xml_vast2&unviewed_position_start=1&url=[referrer_url]&correlator=[timestamp]",
+       "skipButton": "<div class='skipButton'>skip ad</div>"
+     },
+     "analytics": {
+       "category": "Videogular",
+       "label": "Main",
+       "events": {
+         "ready": true,
+         "play": true,
+         "pause": true,
+         "stop": true,
+         "complete": true,
+         "progress": 10
+       }
+     }
+   }
+ }
  * </pre>
+ * @param {function} vgCanPlay Function name in controller's scope to call when video is able to begin playback
  * @param {function} vgComplete Function name in controller's scope to call when video have been completed.
  * @param {function} vgUpdateVolume Function name in controller's scope to call when volume changes. Receives a param with the new volume.
+ * @param {function} vgUpdatePlayback Function name in controller's scope to call when playback changes. Receives a param with the new playback rate.
  * @param {function} vgUpdateTime Function name in controller's scope to call when video playback time is updated. Receives two params with current time and duration in milliseconds.
  * @param {function} vgUpdateState Function name in controller's scope to call when video state changes. Receives a param with the new state. Possible values are "play", "stop" or "pause".
  * @param {function} vgPlayerReady Function name in controller's scope to call when video have been initialized. Receives a param with the videogular API.
@@ -963,34 +1006,36 @@ angular.module("com.2fdevs.videogular")
  */
 "use strict";
 angular.module("com.2fdevs.videogular")
-  .directive("videogular",
-  [function () {
-    return {
-      restrict: "EA",
-      scope: {
-        vgTheme: "=?",
-        vgAutoPlay: "=?",
-        vgPlaysInline: "=?",
-        vgCuePoints: "=?",
-        vgConfig: "@",
-        vgComplete: "&",
-        vgUpdateVolume: "&",
-        vgUpdateTime: "&",
-        vgUpdateState: "&",
-        vgPlayerReady: "&",
-        vgChangeSource: "&",
-        vgError: "&"
-      },
-      controller: "vgController",
-      controllerAs: "API",
-      link: {
-        pre: function (scope, elem, attr, controller) {
-          controller.videogularElement = angular.element(elem);
+    .directive("videogular",
+    [function () {
+        return {
+            restrict: "EA",
+            scope: {
+                vgTheme: "=?",
+                vgAutoPlay: "=?",
+                vgPlaysInline: "=?",
+                vgCuePoints: "=?",
+                vgConfig: "@",
+                vgCanPlay: "&",
+                vgComplete: "&",
+                vgUpdateVolume: "&",
+                vgUpdatePlayback: "&",
+                vgUpdateTime: "&",
+                vgUpdateState: "&",
+                vgPlayerReady: "&",
+                vgChangeSource: "&",
+                vgError: "&"
+            },
+            controller: "vgController",
+            controllerAs: "API",
+            link: {
+                pre: function (scope, elem, attr, controller) {
+                    controller.videogularElement = angular.element(elem);
+                }
+            }
         }
-      }
     }
-  }
-  ]);
+    ]);
 
 /**
  * @ngdoc service
@@ -1003,28 +1048,28 @@ angular.module("com.2fdevs.videogular")
  **/
 "use strict";
 angular.module("com.2fdevs.videogular")
-  .service("vgConfigLoader", ["$http", "$q", "$sce", function($http, $q, $sce) {
-    this.loadConfig = function loadConfig(url) {
-      var deferred = $q.defer();
+    .service("vgConfigLoader", ["$http", "$q", "$sce", function ($http, $q, $sce) {
+        this.loadConfig = function loadConfig(url) {
+            var deferred = $q.defer();
 
-      $http({method: 'GET', url: url}).then(
-        function success(response) {
-          var result = response.data;
+            $http({method: 'GET', url: url}).then(
+                function success(response) {
+                    var result = response.data;
 
-          for (var i=0, l=result.sources.length; i<l; i++) {
-            result.sources[i].src = $sce.trustAsResourceUrl(result.sources[i].src);
-          }
+                    for (var i = 0, l = result.sources.length; i < l; i++) {
+                        result.sources[i].src = $sce.trustAsResourceUrl(result.sources[i].src);
+                    }
 
-          deferred.resolve(result);
-        },
-        function reject() {
-          deferred.reject();
-        }
-      );
+                    deferred.resolve(result);
+                },
+                function reject() {
+                    deferred.reject();
+                }
+            );
 
-      return deferred.promise;
-    };
-  }]);
+            return deferred.promise;
+        };
+    }]);
 
 /**
  * @ngdoc service
@@ -1042,143 +1087,155 @@ angular.module("com.2fdevs.videogular")
  **/
 "use strict";
 angular.module("com.2fdevs.videogular")
-  .service("vgFullscreen", ["VG_UTILS", function (VG_UTILS) {
-    // Native fullscreen polyfill
-    var fsAPI;
-    var polyfill = null;
-    var APIs = {
-      w3: {
-        enabled: "fullscreenEnabled",
-        element: "fullscreenElement",
-        request: "requestFullscreen",
-        exit: "exitFullscreen",
-        onchange: "fullscreenchange",
-        onerror: "fullscreenerror"
-      },
-      newWebkit: {
-        enabled: "webkitFullscreenEnabled",
-        element: "webkitFullscreenElement",
-        request: "webkitRequestFullscreen",
-        exit: "webkitExitFullscreen",
-        onchange: "webkitfullscreenchange",
-        onerror: "webkitfullscreenerror"
-      },
-      oldWebkit: {
-        enabled: "webkitIsFullScreen",
-        element: "webkitCurrentFullScreenElement",
-        request: "webkitRequestFullScreen",
-        exit: "webkitCancelFullScreen",
-        onchange: "webkitfullscreenchange",
-        onerror: "webkitfullscreenerror"
-      },
-      moz: {
-        enabled: "mozFullScreen",
-        element: "mozFullScreenElement",
-        request: "mozRequestFullScreen",
-        exit: "mozCancelFullScreen",
-        onchange: "mozfullscreenchange",
-        onerror: "mozfullscreenerror"
-      },
-      ios: {
-        enabled: "webkitFullscreenEnabled",
-        element: "webkitFullscreenElement",
-        request: "webkitEnterFullscreen",
-        exit: "webkitExitFullscreen",
-        onchange: "webkitfullscreenchange",
-        onerror: "webkitfullscreenerror"
-      },
-      ms: {
-        enabled: "msFullscreenEnabled",
-        element: "msFullscreenElement",
-        request: "msRequestFullscreen",
-        exit: "msExitFullscreen",
-        onchange: "MSFullscreenChange",
-        onerror: "MSFullscreenError"
-      }
-    };
+    .service("vgFullscreen", ["VG_UTILS", function (VG_UTILS) {
+        // Native fullscreen polyfill
+        var fsAPI;
+        var polyfill = null;
+        var APIs = {
+            w3: {
+                enabled: "fullscreenEnabled",
+                element: "fullscreenElement",
+                request: "requestFullscreen",
+                exit: "exitFullscreen",
+                onchange: "fullscreenchange",
+                onerror: "fullscreenerror"
+            },
+            newWebkit: {
+                enabled: "webkitFullscreenEnabled",
+                element: "webkitFullscreenElement",
+                request: "webkitRequestFullscreen",
+                exit: "webkitExitFullscreen",
+                onchange: "webkitfullscreenchange",
+                onerror: "webkitfullscreenerror"
+            },
+            oldWebkit: {
+                enabled: "webkitIsFullScreen",
+                element: "webkitCurrentFullScreenElement",
+                request: "webkitRequestFullScreen",
+                exit: "webkitCancelFullScreen",
+                onchange: "webkitfullscreenchange",
+                onerror: "webkitfullscreenerror"
+            },
+            moz: {
+                enabled: "mozFullScreen",
+                element: "mozFullScreenElement",
+                request: "mozRequestFullScreen",
+                exit: "mozCancelFullScreen",
+                onchange: "mozfullscreenchange",
+                onerror: "mozfullscreenerror"
+            },
+            ios: {
+                enabled: "webkitFullscreenEnabled",
+                element: "webkitFullscreenElement",
+                request: "webkitEnterFullscreen",
+                exit: "webkitExitFullscreen",
+                onchange: "webkitfullscreenchange",
+                onerror: "webkitfullscreenerror"
+            },
+            ms: {
+                enabled: "msFullscreenEnabled",
+                element: "msFullscreenElement",
+                request: "msRequestFullscreen",
+                exit: "msExitFullscreen",
+                onchange: "MSFullscreenChange",
+                onerror: "MSFullscreenError"
+            }
+        };
 
-    for (var browser in APIs) {
-      if (APIs[browser].enabled in document) {
-        polyfill = APIs[browser];
-        break;
-      }
-    }
+        for (var browser in APIs) {
+            if (APIs[browser].enabled in document) {
+                polyfill = APIs[browser];
+                break;
+            }
+        }
 
-    // Override APIs on iOS
-    if (VG_UTILS.isiOSDevice()) {
-      polyfill = APIs.ios;
-    }
+        // Override APIs on iOS
+        if (VG_UTILS.isiOSDevice()) {
+            polyfill = APIs.ios;
+        }
 
-    function isFullScreen() {
-      return (document[polyfill.element] != null);
-    }
+        function isFullScreen() {
+            return (document[polyfill.element] != null);
+        }
 
-    this.isAvailable = (polyfill != null);
+        this.isAvailable = (polyfill != null);
 
-    if (polyfill) {
-      this.onchange = polyfill.onchange;
-      this.onerror = polyfill.onerror;
-      this.isFullScreen = isFullScreen;
-      this.exit = function () {
-        document[polyfill.exit]();
-      };
-      this.request = function (elem) {
-        elem[polyfill.request]();
-      };
-    }
-  }]);
+        if (polyfill) {
+            this.onchange = polyfill.onchange;
+            this.onerror = polyfill.onerror;
+            this.isFullScreen = isFullScreen;
+            this.exit = function () {
+                document[polyfill.exit]();
+            };
+            this.request = function (elem) {
+                elem[polyfill.request]();
+            };
+        }
+    }]);
 
 "use strict";
 angular.module("com.2fdevs.videogular")
-  .service("VG_UTILS", function () {
-    this.fixEventOffset = function ($event) {
-      /**
-       * There's no offsetX in Firefox, so we fix that.
-       * Solution provided by Jack Moore in this post:
-       * http://www.jacklmoore.com/notes/mouse-position/
-       * @param $event
-       * @returns {*}
-       */
-      if (navigator.userAgent.match(/Firefox/i)) {
-        var style = $event.currentTarget.currentStyle || window.getComputedStyle($event.target, null);
-        var borderLeftWidth = parseInt(style['borderLeftWidth'], 10);
-        var borderTopWidth = parseInt(style['borderTopWidth'], 10);
-        var rect = $event.currentTarget.getBoundingClientRect();
-        var offsetX = $event.clientX - borderLeftWidth - rect.left;
-        var offsetY = $event.clientY - borderTopWidth - rect.top;
+    .service("VG_UTILS", ["$window", function ($window) {
+        this.fixEventOffset = function ($event) {
+            /**
+             * There's no offsetX in Firefox, so we fix that.
+             * Solution provided by Jack Moore in this post:
+             * http://www.jacklmoore.com/notes/mouse-position/
+             * @param $event
+             * @returns {*}
+             */
+            if (navigator.userAgent.match(/Firefox/i)) {
+                var style = $event.currentTarget.currentStyle || window.getComputedStyle($event.target, null);
+                var borderLeftWidth = parseInt(style['borderLeftWidth'], 10);
+                var borderTopWidth = parseInt(style['borderTopWidth'], 10);
+                var rect = $event.currentTarget.getBoundingClientRect();
+                var offsetX = $event.clientX - borderLeftWidth - rect.left;
+                var offsetY = $event.clientY - borderTopWidth - rect.top;
 
-        $event.offsetX = offsetX;
-        $event.offsetY = offsetY;
-      }
+                $event.offsetX = offsetX;
+                $event.offsetY = offsetY;
+            }
 
-      return $event;
-    };
+            return $event;
+        };
 
-    /**
-     * Inspired by Paul Irish
-     * https://gist.github.com/paulirish/211209
-     * @returns {number}
-     */
-    this.getZIndex = function () {
-      var zIndex = 1;
+        /**
+         * Inspired by Paul Irish
+         * https://gist.github.com/paulirish/211209
+         * @returns {number}
+         */
+        this.getZIndex = function () {
+            var zIndex = 1;
 
-      var tags = document.getElementsByTagName('*');
+            var tags = document.getElementsByTagName('*');
 
-      for (var i=0, l=tags.length; i<l; i++) {
-        if (tags[i].style.zIndex && parseInt(tags[i].style.zIndex) > zIndex) {
-          zIndex = parseInt(tags[i].style.zIndex) + 1;
-        }
-      }
+            for (var i = 0, l = tags.length; i < l; i++) {
+                if (tags[i].style.zIndex && parseInt(tags[i].style.zIndex) > zIndex) {
+                    zIndex = parseInt(tags[i].style.zIndex) + 1;
+                }
+            }
 
-      return zIndex;
-    };
+            return zIndex;
+        };
 
-    // Very simple mobile detection, not 100% reliable
-    this.isMobileDevice = function () {
-      return (typeof window.orientation !== "undefined") || (navigator.userAgent.indexOf("IEMobile") !== -1);
-    };
+        // Very simple mobile detection, not 100% reliable
+        this.isMobileDevice = function () {
+            return (typeof window.orientation !== "undefined") || (navigator.userAgent.indexOf("IEMobile") !== -1);
+        };
 
-    this.isiOSDevice = function () {
-      return (navigator.userAgent.match(/iPhone/i) || navigator.userAgent.match(/iPod/i) || navigator.userAgent.match(/iPad/i));
-    };
-  });
+        this.isiOSDevice = function () {
+            return (navigator.userAgent.match(/iPhone/i) || navigator.userAgent.match(/iPod/i) || navigator.userAgent.match(/iPad/i));
+        };
+
+        /**
+         * Test the browser's support for HTML5 localStorage.
+         * @returns {boolean}
+         */
+        this.supportsLocalStorage = function () {
+            try {
+                return 'localStorage' in $window && $window['localStorage'] !== null;
+            } catch (e) {
+                return false;
+            }
+        };
+    }]);
