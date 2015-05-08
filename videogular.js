@@ -1,5 +1,5 @@
 /**
- * @license videogular v1.2.0 http://videogular.com
+ * @license videogular v1.2.1 http://videogular.com
  * Two Fucking Developers http://twofuckingdevelopers.com
  * License: MIT
  */
@@ -214,6 +214,9 @@ angular.module("com.2fdevs.videogular")
             for (var tl in this.cuePoints) {
                 for (var i = 0, l = this.cuePoints[tl].length; i < l; i++) {
                     var cp = this.cuePoints[tl][i];
+
+                    // If timeLapse.end is not defined we set it as 1 second length
+                    if (!cp.timeLapse.end) cp.timeLapse.end = cp.timeLapse.start + 1;
 
                     if (currentTime < cp.timeLapse.end) cp.$$isCompleted = false;
 
