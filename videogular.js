@@ -1,5 +1,5 @@
 /**
- * @license videogular v1.2.1 http://videogular.com
+ * @license videogular v1.2.2 http://videogular.com
  * Two Fucking Developers http://twofuckingdevelopers.com
  * License: MIT
  */
@@ -320,6 +320,7 @@ angular.module("com.2fdevs.videogular")
         this.stop = function () {
             this.mediaElement[0].pause();
             this.mediaElement[0].currentTime = 0;
+            this.currentTime = 0;
             this.setState(VG_STATES.STOP);
         };
 
@@ -505,6 +506,11 @@ angular.module("com.2fdevs.videogular")
             $scope.$watch("vgPlaysInline", function (newValue, oldValue) {
                 this.playsInline = newValue;
             });
+
+            $scope.$watch("vgCuePoints", function (newValue, oldValue) {
+                this.cuePoints = newValue;
+                this.checkCuePoints(this.currentTime);
+            }.bind(this));
         };
 
         this.onFullScreenChange = function (event) {
@@ -1187,7 +1193,8 @@ angular.module("com.2fdevs.videogular")
              * @param $event
              * @returns {*}
              */
-            if (navigator.userAgent.match(/Firefox/i)) {
+            var matchedFF = navigator.userAgent.match(/Firefox\/(\d+)/i)
+            if (matchedFF && Number.parseInt(matchedFF.pop()) < 39) {
                 var style = $event.currentTarget.currentStyle || window.getComputedStyle($event.target, null);
                 var borderLeftWidth = parseInt(style['borderLeftWidth'], 10);
                 var borderTopWidth = parseInt(style['borderTopWidth'], 10);
