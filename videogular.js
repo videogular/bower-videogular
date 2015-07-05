@@ -1,5 +1,5 @@
 /**
- * @license videogular v1.2.3 http://videogular.com
+ * @license videogular v1.2.4 http://videogular.com
  * Two Fucking Developers http://twofuckingdevelopers.com
  * License: MIT
  */
@@ -318,8 +318,11 @@ angular.module("com.2fdevs.videogular")
         };
 
         this.stop = function () {
-            this.mediaElement[0].pause();
-            this.mediaElement[0].currentTime = 0;
+            if (this.mediaElement && this.mediaElement[0]) {
+                this.mediaElement[0].pause();
+                this.mediaElement[0].currentTime = 0;
+            }
+
             this.currentTime = 0;
             this.setState(VG_STATES.STOP);
         };
@@ -696,7 +699,17 @@ angular.module("com.2fdevs.videogular")
                 API.addListeners();
                 API.onVideoReady();
 
-                scope.$watch("vgSrc", scope.onChangeSource);
+                if (scope.vgSrc) {
+                    scope.$watch("vgSrc", scope.onChangeSource);
+                }
+                else {
+                    scope.$watch(
+                      function() {
+                          return API.sources;
+                      },
+                      scope.onChangeSource
+                    );
+                }
 
                 if (API.isConfig) {
                     scope.$watch(
@@ -1225,12 +1238,15 @@ angular.module("com.2fdevs.videogular")
          */
         this.getZIndex = function () {
             var zIndex = 1;
+            var elementZIndex;
 
             var tags = document.getElementsByTagName('*');
 
             for (var i = 0, l = tags.length; i < l; i++) {
-                if (tags[i].style.zIndex && parseInt(tags[i].style.zIndex) > zIndex) {
-                    zIndex = parseInt(tags[i].style.zIndex) + 1;
+                elementZIndex = parseInt(window.getComputedStyle(tags[i])["z-index"]);
+
+                if (elementZIndex > zIndex) {
+                    zIndex = elementZIndex + 1;
                 }
             }
 
