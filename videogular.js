@@ -1,5 +1,5 @@
 /**
- * @license videogular v1.2.4 http://videogular.com
+ * @license videogular v1.2.5 http://videogular.com
  * Two Fucking Developers http://twofuckingdevelopers.com
  * License: MIT
  */
@@ -318,13 +318,16 @@ angular.module("com.2fdevs.videogular")
         };
 
         this.stop = function () {
-            if (this.mediaElement && this.mediaElement[0]) {
+            try {
                 this.mediaElement[0].pause();
                 this.mediaElement[0].currentTime = 0;
-            }
 
-            this.currentTime = 0;
-            this.setState(VG_STATES.STOP);
+                this.currentTime = 0;
+                this.setState(VG_STATES.STOP);
+            }
+            catch (e) {
+                return e;
+            }
         };
 
         this.toggleFullScreen = function () {
@@ -540,6 +543,65 @@ angular.module("com.2fdevs.videogular")
 
 /**
  * @ngdoc directive
+ * @name com.2fdevs.videogular.directive:vgCrossorigin
+ * @restrict A
+ * @description
+ * Optional directive for `vg-media` to add or remove a crossorigin policy to the video object. Possible values are: "anonymous" and "use-credentials".
+ * This feature should be enabled if you want to have your subtitles or video files on a different domain than the video player. Additionally you need
+ * to add CORS policies to your video and track files to your server to make it work.
+ *
+ */
+"use strict";
+angular.module("com.2fdevs.videogular")
+    .directive("vgCrossorigin",
+    [function () {
+        return {
+            restrict: "A",
+            require: "^videogular",
+            link: {
+                pre: function (scope, elem, attr, API) {
+                    var crossorigin;
+
+                    scope.setCrossorigin = function setCrossorigin(value) {
+                        if (value) {
+                            API.mediaElement.attr("crossorigin", value);
+                        }
+                        else {
+                            API.mediaElement.removeAttr("crossorigin");
+                        }
+                    };
+
+                    if (API.isConfig) {
+                        scope.$watch(
+                            function () {
+                                return API.config;
+                            },
+                            function () {
+                                if (API.config) {
+                                    scope.setCrossorigin(API.config.crossorigin);
+                                }
+                            }
+                        );
+                    }
+                    else {
+                        scope.$watch(attr.vgCrossorigin, function (newValue, oldValue) {
+                            if ((!crossorigin || newValue != oldValue) && newValue) {
+                                crossorigin = newValue;
+                                scope.setCrossorigin(crossorigin);
+                            }
+                            else {
+                                scope.setCrossorigin();
+                            }
+                        });
+                    }
+                }
+            }
+        }
+    }
+    ]);
+
+/**
+ * @ngdoc directive
  * @name com.2fdevs.videogular.directive:vgLoop
  * @restrict A
  * @description
@@ -679,7 +741,7 @@ angular.module("com.2fdevs.videogular")
                     }
 
                     // Android 2.3 support: https://github.com/2fdevs/videogular/issues/187
-                    API.mediaElement[0].load();
+                    if (VG_UTILS.isMobileDevice()) API.mediaElement[0].load();
 
                     $timeout(function () {
                         if (API.autoPlay && !VG_UTILS.isMobileDevice()) {
@@ -699,17 +761,13 @@ angular.module("com.2fdevs.videogular")
                 API.addListeners();
                 API.onVideoReady();
 
-                if (scope.vgSrc) {
-                    scope.$watch("vgSrc", scope.onChangeSource);
-                }
-                else {
-                    scope.$watch(
-                      function() {
-                          return API.sources;
-                      },
-                      scope.onChangeSource
-                    );
-                }
+                scope.$watch("vgSrc", scope.onChangeSource);
+                scope.$watch(
+                    function() {
+                        return API.sources;
+                    },
+                    scope.onChangeSource
+                );
 
                 if (API.isConfig) {
                     scope.$watch(
@@ -874,7 +932,11 @@ angular.module("com.2fdevs.videogular")
                     var i;
                     var l;
 
-                    scope.changeSource = function changeSource() {
+                    scope.onLoadMetaData = function() {
+                        scope.updateTracks();
+                    };
+
+                    scope.updateTracks = function() {
                         // Remove previous tracks
                         var oldTracks = API.mediaElement.children();
 
@@ -887,26 +949,29 @@ angular.module("com.2fdevs.videogular")
                         // Add new tracks
                         if (tracks) {
                             for (i = 0, l = tracks.length; i < l; i++) {
-                                trackText = "";
-                                trackText += '<track ';
-
-                                // Add track properties
+                                var track = document.createElement('track');
                                 for (var prop in tracks[i]) {
-                                    trackText += prop + '="' + tracks[i][prop] + '" ';
+                                    track[prop] = tracks[i][prop];
                                 }
 
-                                trackText += '></track>';
+                                track.addEventListener('load', scope.onLoadTrack.bind(scope, track));
 
-                                API.mediaElement.append(trackText);
+                                API.mediaElement[0].appendChild(track);
                             }
                         }
+                    };
+
+                    scope.onLoadTrack = function(track) {
+                        track.mode = 'showing';
+                        API.mediaElement[0].textTracks[0].mode = 'showing'; // thanks Firefox
                     };
 
                     scope.setTracks = function setTracks(value) {
                         // Add tracks to the API to have it available for other plugins (like controls)
                         tracks = value;
                         API.tracks = value;
-                        scope.changeSource();
+
+                        API.mediaElement[0].addEventListener("loadedmetadata", scope.onLoadMetaData.bind(scope), false);
                     };
 
                     if (API.isConfig) {
@@ -1267,7 +1332,12 @@ angular.module("com.2fdevs.videogular")
          * @returns {boolean}
          */
         this.supportsLocalStorage = function () {
+            var testKey = 'videogular-test-key';
+            var storage = $window.sessionStorage;
+
             try {
+                storage.setItem(testKey, '1');
+                storage.removeItem(testKey);
                 return 'localStorage' in $window && $window['localStorage'] !== null;
             } catch (e) {
                 return false;
