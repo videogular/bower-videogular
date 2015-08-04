@@ -135,6 +135,7 @@ angular.module("com.2fdevs.videogular")
         var currentTheme = null;
         var isFullScreenPressed = false;
         var isMetaDataLoaded = false;
+        var hasStartTimePlayed = false;
 
         // PUBLIC $API
         this.videogularElement = null;
@@ -146,6 +147,11 @@ angular.module("com.2fdevs.videogular")
         this.onCanPlay = function (evt) {
             this.isBuffering = false;
             $scope.$apply($scope.vgCanPlay({$event: evt}));
+
+            if( !hasStartTimePlayed && this.startTime > 0 ) {
+                hasStartTimePlayed = true;
+                this.seekTime( this.startTime );
+            }
         };
 
         this.onVideoReady = function () {
@@ -512,6 +518,17 @@ angular.module("com.2fdevs.videogular")
             }
         };
 
+        this.onUpdateStartTime = function onUpdateStartTime(newValue) {
+            if (newValue && !this.startTime) {
+                this.startTime = newValue;
+            }
+        };
+        this.onUpdateVirtualClipDuration = function onUpdateVirtualClipDuration(newValue) {
+            if (newValue && !this.virtualClipDuration) {
+                this.virtualClipDuration = newValue;
+            }
+        };
+
         this.onUpdatePlaysInline = function onUpdatePlaysInline(newValue) {
             this.playsInline = newValue;
         };
@@ -525,6 +542,10 @@ angular.module("com.2fdevs.videogular")
             $scope.$watch("vgTheme", this.onUpdateTheme.bind(this));
 
             $scope.$watch("vgAutoPlay", this.onUpdateAutoPlay.bind(this));
+
+            $scope.$watch("vgStartTime", this.onUpdateStartTime.bind(this));
+
+            $scope.$watch("vgVirtualClipDuration", this.onUpdateVirtualClipDuration.bind(this));
 
             $scope.$watch("vgPlaysInline", this.onUpdatePlaysInline.bind(this));
 
