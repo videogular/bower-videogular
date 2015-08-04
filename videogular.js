@@ -4,6 +4,7 @@
  * License: MIT
  */
 "use strict";
+console.log( '### using re-videogular' );
 angular.module("com.2fdevs.videogular", ["ngSanitize"])
     .run(
     ["$templateCache", function ($templateCache) {
