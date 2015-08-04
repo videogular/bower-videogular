@@ -153,6 +153,8 @@ angular.module("com.2fdevs.videogular")
             this.autoPlay = $scope.vgAutoPlay;
             this.playsInline = $scope.vgPlaysInline;
             this.cuePoints = $scope.vgCuePoints;
+            this.startTime = $scope.vgStartTime;
+            this.virtualClipDuration = $scope.vgVirtualClipDuration;
             this.currentState = VG_STATES.STOP;
 
             isMetaDataLoaded = true;
@@ -180,6 +182,8 @@ angular.module("com.2fdevs.videogular")
             $scope.vgAutoPlay = this.config.autoPlay;
             $scope.vgPlaysInline = this.config.playsInline;
             $scope.vgCuePoints = this.config.cuePoints;
+            $scope.vgStartTime = this.config.startTime;
+            $scope.vgVirtualClipDuration = this.config.virtualClipDuration;
 
             $scope.vgPlayerReady({$API: this});
         };
@@ -1016,6 +1020,10 @@ angular.module("com.2fdevs.videogular")
  *
  * @param {boolean} [vgAutoPlay=false] vgAutoPlay Boolean value or a String with a scope name variable to auto start playing video when it is initialized.
  *
+ * @param {boolean} [vgStartTime=-1] vgStartTime Number value or a String with a scope name variable to start playing the video at a certain time.
+ *
+ * @param {boolean} [vgVirtualClipDuration=-1] vgVirtualClipDuration Number value or a String with a scope name variable for a length to limit the video playback to.
+ *
  * **This parameter is disabled in mobile devices** because user must click on content to prevent consuming mobile data plans.
  *
  * @param {object} vgCuePoints Bindable object containing a list of timelines with cue points objects. A timeline is an array of objects with the following properties:
@@ -1031,6 +1039,8 @@ angular.module("com.2fdevs.videogular")
    "controls": false,
    "loop": false,
    "autoplay": false,
+   "startTime": -1,
+   "virtualClipDuration": -1,
    "preload": "auto",
    "theme": "path/to/videogular.css",
    "sources": [
@@ -1110,6 +1120,8 @@ angular.module("com.2fdevs.videogular")
             scope: {
                 vgTheme: "=?",
                 vgAutoPlay: "=?",
+                vgStartTime: "=?",
+                vgVirtualClipDuration: "=?",
                 vgPlaysInline: "=?",
                 vgCuePoints: "=?",
                 vgConfig: "@",
