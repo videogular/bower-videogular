@@ -136,6 +136,7 @@ angular.module("com.2fdevs.videogular")
         var isFullScreenPressed = false;
         var isMetaDataLoaded = false;
         var hasStartTimePlayed = false;
+        var isVirtualClip = false;
 
         // PUBLIC $API
         this.videogularElement = null;
@@ -164,6 +165,7 @@ angular.module("com.2fdevs.videogular")
             this.currentState = VG_STATES.STOP;
 
             isMetaDataLoaded = true;
+            isVirtualClip = this.startTime > 0 && this.virtualClipDuration > 0;
 
             //Set media volume from localStorage if available
             if (VG_UTILS.supportsLocalStorage()) {
@@ -191,6 +193,8 @@ angular.module("com.2fdevs.videogular")
             $scope.vgStartTime = this.config.startTime;
             $scope.vgVirtualClipDuration = this.config.virtualClipDuration;
 
+            isVirtualClip = $scope.vgStartTime > 0 && $scope.vgVirtualClipDuration > 0;
+
             $scope.vgPlayerReady({$API: this});
         };
 
@@ -203,20 +207,36 @@ angular.module("com.2fdevs.videogular")
             this.currentTime = 1000 * event.target.currentTime;
 
             if (event.target.duration != Infinity) {
-                this.totalTime = 1000 * event.target.duration;
-                this.timeLeft = 1000 * (event.target.duration - event.target.currentTime);
+                //Fake the duration and current time for virtual clips
+                if( isVirtualClip ) {
+                    if( event.target.currentTime < this.startTime || event.target.currentTime - this.startTime > this.virtualClipDuration ) {
+                        this.pause();
+                        this.seekTime( this.startTime );
+                    } else {
+                        this.currentTime -= 1000 * this.startTime;
+                        this.totalTime = this.virtualClipDuration * 1000;
+                        this.timeLeft = 1000 * (this.totalTime - this.currentTime );
+                    }
+                } else {
+                    this.totalTime = 1000 * event.target.duration;
+                    this.timeLeft = 1000 * (event.target.duration - event.target.currentTime);
+                }
+
                 this.isLive = false;
+
             }
             else {
                 // It's a live streaming without and end
                 this.isLive = true;
             }
 
+            var targetSeconds = isVirtualClip ? this.currentTime / 1000 : event.target.currentTime;
+            var targetDuration = isVirtualClip ? this.totalTime / 1000 : event.target.duration;
             if (this.cuePoints) {
-                this.checkCuePoints(event.target.currentTime);
+                this.checkCuePoints(targetSeconds);
             }
 
-            $scope.vgUpdateTime({$currentTime: event.target.currentTime, $duration: event.target.duration});
+            $scope.vgUpdateTime({$currentTime: targetSeconds, $duration: targetDuration});
 
             $scope.$apply();
         };
@@ -288,11 +308,19 @@ angular.module("com.2fdevs.videogular")
         this.seekTime = function (value, byPercent) {
             var second;
             if (byPercent) {
-                second = value * this.mediaElement[0].duration / 100;
+                if( isVirtualClip ) {
+                    second = this.startTime + (value * this.virtualClipDuration / 100);
+                } else {
+                    second = value * this.mediaElement[0].duration / 100;
+                }
                 this.mediaElement[0].currentTime = second;
-            }
-            else {
-                second = value;
+            } else {
+                if( (isVirtualClip && !hasStartTimePlayed) || !isVirtualClip){
+                    second = value;
+                } else {
+                    var durationPercent = value/this.mediaElement[0].duration;
+                    second = this.startTime + this.virtualClipDuration * durationPercent;
+                }
                 this.mediaElement[0].currentTime = second;
             }
 
@@ -331,9 +359,11 @@ angular.module("com.2fdevs.videogular")
         this.stop = function () {
             try {
                 this.mediaElement[0].pause();
-                this.mediaElement[0].currentTime = 0;
 
-                this.currentTime = 0;
+                var targetTime = isVirtualClip ? this.startTime : 0;
+                this.mediaElement[0].currentTime = targetTime;
+
+                this.currentTime = targetTime;
                 this.setState(VG_STATES.STOP);
             }
             catch (e) {
@@ -392,6 +422,7 @@ angular.module("com.2fdevs.videogular")
         };
 
         this.changeSource = function (newValue) {
+            hasStartTimePlayed = false;
             $scope.vgChangeSource({$source: newValue});
         };
 
