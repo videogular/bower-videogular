@@ -150,8 +150,8 @@ angular.module("com.2fdevs.videogular")
             $scope.$apply($scope.vgCanPlay({$event: evt}));
 
             if( !hasStartTimePlayed && this.startTime > 0 ) {
-                hasStartTimePlayed = true;
                 this.seekTime( this.startTime );
+                hasStartTimePlayed = true;
             }
         };
 
@@ -208,11 +208,11 @@ angular.module("com.2fdevs.videogular")
             if (event.target.duration != Infinity) {
                 //Fake the duration and current time for virtual clips
                 if( isVirtualClip ) {
-                    if( event.target.currentTime < this.startTime || event.target.currentTime - this.startTime > this.virtualClipDuration ) {
+                    if( hasStartTimePlayed && (event.target.currentTime < this.startTime || event.target.currentTime - this.startTime > this.virtualClipDuration) ) {
                         this.pause();
                         this.seekTime( this.startTime );
                     } else {
-                        this.currentTime = targetTime - 1000 * this.startTime;
+                        this.currentTime = Math.max( 0, targetTime - 1000 * this.startTime);
                         this.totalTime = this.virtualClipDuration * 1000;
                         this.timeLeft = 1000 * (this.totalTime - this.currentTime );
                     }
@@ -317,13 +317,13 @@ angular.module("com.2fdevs.videogular")
                     this.mediaElement[0].currentTime = second;
                 }
             } else {
-                if( !isVirtualClip || (isVirtualClip && !hasStartTimePlayed) ){
+                if( isVirtualClip ){
+                    var durationPercent = value/this.mediaElement[0].duration;
+                    second = !hasStartTimePlayed ? 0 : this.virtualClipDuration * durationPercent;
+                    this.mediaElement[0].currentTime = !hasStartTimePlayed ? this.startTime : this.startTime + second;
+                } else {
                     second = value;
                     this.mediaElement[0].currentTime = second;
-                } else {
-                    var durationPercent = value/this.mediaElement[0].duration;
-                    second = this.virtualClipDuration * durationPercent;
-                    this.mediaElement[0].currentTime = this.startTime + second;
                 }
             }
 
