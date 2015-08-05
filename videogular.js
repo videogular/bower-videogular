@@ -204,8 +204,7 @@ angular.module("com.2fdevs.videogular")
         };
 
         this.onUpdateTime = function (event) {
-            this.currentTime = 1000 * event.target.currentTime;
-
+            var targetTime = 1000 * event.target.currentTime;
             if (event.target.duration != Infinity) {
                 //Fake the duration and current time for virtual clips
                 if( isVirtualClip ) {
@@ -213,11 +212,12 @@ angular.module("com.2fdevs.videogular")
                         this.pause();
                         this.seekTime( this.startTime );
                     } else {
-                        this.currentTime -= 1000 * this.startTime;
+                        this.currentTime = targetTime - 1000 * this.startTime;
                         this.totalTime = this.virtualClipDuration * 1000;
                         this.timeLeft = 1000 * (this.totalTime - this.currentTime );
                     }
                 } else {
+                    this.currentTime = targetTime;
                     this.totalTime = 1000 * event.target.duration;
                     this.timeLeft = 1000 * (event.target.duration - event.target.currentTime);
                 }
@@ -227,6 +227,7 @@ angular.module("com.2fdevs.videogular")
             }
             else {
                 // It's a live streaming without and end
+                this.currentTime = targetTime;
                 this.isLive = true;
             }
 
@@ -309,19 +310,21 @@ angular.module("com.2fdevs.videogular")
             var second;
             if (byPercent) {
                 if( isVirtualClip ) {
-                    second = this.startTime + (value * this.virtualClipDuration / 100);
+                    second = (value * this.virtualClipDuration / 100);
+                    this.mediaElement[0].currentTime = this.startTime + second;
                 } else {
                     second = value * this.mediaElement[0].duration / 100;
+                    this.mediaElement[0].currentTime = second;
                 }
-                this.mediaElement[0].currentTime = second;
             } else {
-                if( (isVirtualClip && !hasStartTimePlayed) || !isVirtualClip){
+                if( !isVirtualClip || (isVirtualClip && !hasStartTimePlayed) ){
                     second = value;
+                    this.mediaElement[0].currentTime = second;
                 } else {
                     var durationPercent = value/this.mediaElement[0].duration;
-                    second = this.startTime + this.virtualClipDuration * durationPercent;
+                    second = this.virtualClipDuration * durationPercent;
+                    this.mediaElement[0].currentTime = this.startTime + second;
                 }
-                this.mediaElement[0].currentTime = second;
             }
 
             this.currentTime = 1000 * second;
