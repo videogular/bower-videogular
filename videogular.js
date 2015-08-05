@@ -426,6 +426,11 @@ angular.module("com.2fdevs.videogular")
 
         this.changeSource = function (newValue) {
             hasStartTimePlayed = false;
+
+            this.startTime = $scope.vgStartTime;
+            this.virtualClipDuration = $scope.vgVirtualClipDuration;
+            isVirtualClip = this.startTime > 0 && this.virtualClipDuration;
+
             $scope.vgChangeSource({$source: newValue});
         };
 
@@ -555,11 +560,13 @@ angular.module("com.2fdevs.videogular")
         this.onUpdateStartTime = function onUpdateStartTime(newValue) {
             if (newValue && !this.startTime) {
                 this.startTime = newValue;
+                isVirtualClip = this.startTime > 0 && this.virtualClipDuration > 0;
             }
         };
         this.onUpdateVirtualClipDuration = function onUpdateVirtualClipDuration(newValue) {
             if (newValue && !this.virtualClipDuration) {
                 this.virtualClipDuration = newValue;
+                isVirtualClip = this.startTime > 0 && this.virtualClipDuration > 0;
             }
         };
 
