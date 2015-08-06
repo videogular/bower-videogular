@@ -209,8 +209,7 @@ angular.module("com.2fdevs.videogular")
                 //Fake the duration and current time for virtual clips
                 if( isVirtualClip ) {
                     if( hasStartTimePlayed && (event.target.currentTime < this.startTime || event.target.currentTime - this.startTime > this.virtualClipDuration) ) {
-                        this.pause();
-                        this.seekTime( this.startTime );
+                        this.onComplete();
                     } else {
                         this.currentTime = Math.max( 0, targetTime - 1000 * this.startTime);
                         this.totalTime = this.virtualClipDuration * 1000;
@@ -286,7 +285,8 @@ angular.module("com.2fdevs.videogular")
         };
 
         this.onPause = function () {
-            if (this.mediaElement[0].currentTime == 0) {
+            var currentTime = isVirtualClip ? this.currentTime : this.mediaElement[0].currentTime;
+            if (currentTime == 0) {
                 this.setState(VG_STATES.STOP);
             }
             else {
@@ -503,6 +503,11 @@ angular.module("com.2fdevs.videogular")
 
             this.setState(VG_STATES.STOP);
             this.isCompleted = true;
+
+            if( isVirtualClip ) {
+                this.stop()
+            }
+
             $scope.$apply();
         };
 
