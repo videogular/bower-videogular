@@ -1,5 +1,5 @@
 /**
- * @license videogular v1.2.6 http://videogular.com
+ * @license videogular v1.2.7 http://videogular.com
  * Two Fucking Developers http://twofuckingdevelopers.com
  * License: MIT
  */
@@ -225,19 +225,31 @@ angular.module("com.2fdevs.videogular")
             for (var tl in this.cuePoints) {
                 for (var i = 0, l = this.cuePoints[tl].length; i < l; i++) {
                     var cp = this.cuePoints[tl][i];
+                    var currentSecond = parseInt(currentTime, 10);
+                    var start = parseInt(cp.timeLapse.start, 10);
 
                     // If timeLapse.end is not defined we set it as 1 second length
                     if (!cp.timeLapse.end) cp.timeLapse.end = cp.timeLapse.start + 1;
 
                     if (currentTime < cp.timeLapse.end) cp.$$isCompleted = false;
 
+                    // Fire the onEnter event once reach to the cue point
+                    if(!cp.$$isDirty && currentSecond === start && (typeof cp.onEnter == 'function')) {
+                        cp.onEnter(currentTime, cp.timeLapse, cp.params);
+                        cp.$$isDirty = true;
+                    }
+
                     // Check if we've been reached to the cue point
                     if (currentTime > cp.timeLapse.start) {
-                        cp.$$isDirty = true;
-
                         // We're in the timelapse
                         if (currentTime < cp.timeLapse.end) {
+                            // Trigger onUpdate each time we enter here
                             if (cp.onUpdate) cp.onUpdate(currentTime, cp.timeLapse, cp.params);
+
+                            // Trigger onEnter if we enter on the cue point by manually seeking
+                            if (!cp.$$isDirty) cp.onEnter(currentTime, cp.timeLapse, cp.params);
+
+                            cp.$$isDirty = true;
                         }
 
                         // We've been passed the cue point
@@ -246,6 +258,8 @@ angular.module("com.2fdevs.videogular")
                                 cp.$$isCompleted = true;
                                 cp.onComplete(currentTime, cp.timeLapse, cp.params);
                             }
+
+                            cp.$$isDirty = false;
                         }
                     }
                     else {
@@ -974,12 +988,13 @@ angular.module("com.2fdevs.videogular")
             require: "^videogular",
             link: {
                 pre: function (scope, elem, attr, API) {
+                    var isMetaDataLoaded = false;
                     var tracks;
-                    var trackText;
                     var i;
                     var l;
 
                     scope.onLoadMetaData = function() {
+                        isMetaDataLoaded = true;
                         scope.updateTracks();
                     };
 
@@ -1009,8 +1024,22 @@ angular.module("com.2fdevs.videogular")
                     };
 
                     scope.onLoadTrack = function(track) {
-                        track.mode = 'showing';
-                        API.mediaElement[0].textTracks[0].mode = 'showing'; // thanks Firefox
+                        if (track.default) track.mode = 'showing';
+                        else track.mode = 'hidden';
+
+                        for (var i=0, l=API.mediaElement[0].textTracks.length; i<l; i++) {
+                            if (track.label == API.mediaElement[0].textTracks[i].label) {
+                                if (track.default) {
+                                    API.mediaElement[0].textTracks[i].mode = 'showing';
+                                }
+                                else {
+                                    API.mediaElement[0].textTracks[i].mode = 'disabled';
+                                }
+                            }
+
+                        }
+
+                        track.removeEventListener('load', scope.onLoadTrack.bind(scope, track));
                     };
 
                     scope.setTracks = function setTracks(value) {
@@ -1018,7 +1047,12 @@ angular.module("com.2fdevs.videogular")
                         tracks = value;
                         API.tracks = value;
 
-                        API.mediaElement[0].addEventListener("loadedmetadata", scope.onLoadMetaData.bind(scope), false);
+                        if (isMetaDataLoaded) {
+                            scope.updateTracks();
+                        }
+                        else {
+                            API.mediaElement[0].addEventListener("loadedmetadata", scope.onLoadMetaData.bind(scope), false);
+                        }
                     };
 
                     if (API.isConfig) {
@@ -1038,7 +1072,7 @@ angular.module("com.2fdevs.videogular")
                             if ((!tracks || newValue != oldValue)) {
                                 scope.setTracks(newValue);
                             }
-                        });
+                        }, true);
                     }
                 }
             }
