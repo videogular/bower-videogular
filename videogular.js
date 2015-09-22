@@ -1,5 +1,5 @@
 /**
- * @license videogular v1.2.7 http://videogular.com
+ * @license videogular v1.2.8 http://videogular.com
  * Two Fucking Developers http://twofuckingdevelopers.com
  * License: MIT
  */
@@ -106,6 +106,7 @@ angular.module("com.2fdevs.videogular")
  *      start: 0,
  *      end: 10
  *    },
+ *    onEnter: callback(currentTime, timeLapse, params),
  *    onLeave: callback(currentTime, timeLapse, params),
  *    onUpdate: callback(currentTime, timeLapse, params),
  *    onComplete: callback(currentTime, timeLapse, params),
@@ -114,11 +115,12 @@ angular.module("com.2fdevs.videogular")
  *    }
  * }</pre>
  *
- *    * timeLapse: Object with start and end properties to define in seconds when this timeline is active.\n
- *    * onLeave: Callback function that will be called when user seeks and the new time doesn't reach to the timeLapse.start property.
- *    * onUpdate: Callback function that will be called when the progress is in the middle of timeLapse.start and timeLapse.end.
- *    * onComplete: Callback function that will be called when the progress is bigger than timeLapse.end.
- *    * params: Custom object with data to pass to the callbacks.
+ *    * **timeLapse:** Object with start and end properties to define in seconds when this timeline is active.\n
+ *    * **onEnter:** Callback function that will be called when progress reaches a cue point or being outside a cue point user seeks to a cue point manually.
+ *    * **onLeave:** Callback function that will be called when user seeks and the new time doesn't reach to the timeLapse.start property.
+ *    * **onUpdate:** Callback function that will be called when the progress is in the middle of timeLapse.start and timeLapse.end.
+ *    * **onComplete:** Callback function that will be called when the progress is bigger than timeLapse.end.
+ *    * **params:** Custom object with data to pass to the callbacks.
  *
  * - isFullScreen: Boolean value to know if we’re in fullscreen mode.
  * - currentState: String value with “play”, “pause” or “stop”.
@@ -247,7 +249,9 @@ angular.module("com.2fdevs.videogular")
                             if (cp.onUpdate) cp.onUpdate(currentTime, cp.timeLapse, cp.params);
 
                             // Trigger onEnter if we enter on the cue point by manually seeking
-                            if (!cp.$$isDirty) cp.onEnter(currentTime, cp.timeLapse, cp.params);
+                            if (!cp.$$isDirty && (typeof cp.onEnter === 'function')) {
+                                cp.onEnter(currentTime, cp.timeLapse, cp.params);
+                            }
 
                             cp.$$isDirty = true;
                         }
@@ -518,6 +522,7 @@ angular.module("com.2fdevs.videogular")
             this.timeLeft = 0;
             this.isLive = false;
             this.isFullScreen = false;
+            this.playback = 1;
             this.isConfig = ($scope.vgConfig != undefined);
 
             if (vgFullscreen.isAvailable) {
@@ -1104,6 +1109,7 @@ angular.module("com.2fdevs.videogular")
  *
  * @param {object} vgCuePoints Bindable object containing a list of timelines with cue points objects. A timeline is an array of objects with the following properties:
  * - `timeLapse` is an object with two properties `start` and `end` representing in seconds the period for this cue points.
+ * - `onEnter` callback called when user enters on a cue point. callback(currentTime, timeLapse, params)
  * - `onLeave` callback called when user seeks backwards and leave the current cue point or a completed cue point. callback(currentTime, timeLapse, params)
  * - `onUpdate` callback called when the current time is between timeLapse.start and timeLapse.end. callback(currentTime, timeLapse, params)
  * - `onComplete` callback called when the user seek forward or the current time passes timeLapse.end property. callback(currentTime, timeLapse, params)
@@ -1277,7 +1283,7 @@ angular.module("com.2fdevs.videogular")
 angular.module("com.2fdevs.videogular")
     .service("vgFullscreen", ["VG_UTILS", function (VG_UTILS) {
         // Native fullscreen polyfill
-        var fsAPI;
+        var element;
         var polyfill = null;
         var APIs = {
             w3: {
@@ -1343,7 +1349,16 @@ angular.module("com.2fdevs.videogular")
         }
 
         function isFullScreen() {
-            return (document[polyfill.element] != null);
+            var result = false;
+
+            if (element) {
+                result = (document[polyfill.element] != null || element.webkitDisplayingFullscreen)
+            }
+            else {
+                result = (document[polyfill.element] != null)
+            }
+
+            return result;
         }
 
         this.isAvailable = (polyfill != null);
@@ -1356,7 +1371,8 @@ angular.module("com.2fdevs.videogular")
                 document[polyfill.exit]();
             };
             this.request = function (elem) {
-                elem[polyfill.request]();
+                element = elem;
+                element[polyfill.request]();
             };
         }
     }]);
