@@ -204,7 +204,7 @@ angular.module("com.2fdevs.videogular")
         };
 
         this.onProgress = function (event) {
-            if (event.target.buffered.length) {
+            if (event.target.buffered && event.target.buffered.length) {
                 this.buffered = event.target.buffered;
                 this.bufferEnd = 1000 * event.target.buffered.end(event.target.buffered.length - 1);
             }
@@ -215,7 +215,7 @@ angular.module("com.2fdevs.videogular")
         this.onUpdateTime = function (event) {
             this.currentTime = 1000 * event.target.currentTime;
 
-            if (event.target.buffered.length) {
+            if (event.target.buffered && event.target.buffered.length) {
                 this.buffered = event.target.buffered;
                 this.bufferEnd = 1000 * event.target.buffered.end(event.target.buffered.length - 1);
             }
