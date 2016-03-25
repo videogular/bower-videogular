@@ -1,5 +1,5 @@
 /**
- * @license videogular v1.4.2 http://videogular.com
+ * @license videogular v1.4.3 http://videogular.com
  * Two Fucking Developers http://twofuckingdevelopers.com
  * License: MIT
  */
@@ -251,7 +251,7 @@ angular.module("com.2fdevs.videogular")
 
             this.updateBuffer(event);
 
-            if (event.target.duration != Infinity) {
+            if (event.target.duration != Infinity && event.target.duration != null && event.target.duration != undefined && event.target.duration != 1.7976931348623157e+308) {
                 // Fake the duration and current time for virtual clips
                 if (isVirtualClip) {
                     if (hasStartTimePlayed && (event.target.currentTime < this.startTime || event.target.currentTime - this.startTime > this.virtualClipDuration)) {
@@ -1578,9 +1578,9 @@ angular.module("com.2fdevs.videogular")
          */
         this.supportsLocalStorage = function () {
             var testKey = 'videogular-test-key';
-            var storage = $window.sessionStorage;
 
             try {
+                var storage = $window.sessionStorage;
                 storage.setItem(testKey, '1');
                 storage.removeItem(testKey);
                 return 'localStorage' in $window && $window['localStorage'] !== null;
